@@ -1,0 +1,4 @@
+package hashes
+
+func main() {
+}
