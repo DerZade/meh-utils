@@ -59,7 +59,10 @@ func Run(flagSet *flag.FlagSet) {
 	fmt.Println("▶️  Building tiles")
 	for lod := uint8(0); lod <= maxLod; lod++ {
 		wg.Add(1)
-		go buildTileSet(lod, combinedImg, *outputPtr, &wg)
+		go func(lod uint8) {
+			defer wg.Done()
+			buildTileSet(lod, combinedImg, *outputPtr)
+		}(lod)
 
 	}
 

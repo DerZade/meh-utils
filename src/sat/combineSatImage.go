@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"sync"
 
 	"../utils"
 )
@@ -19,23 +20,38 @@ func combineSatImage(inputDir string) *image.RGBA {
 
 	var images [4][4]image.Image
 
+	// load all images
+	waitGrp := sync.WaitGroup{}
 	for col := 0; col < 4; col++ {
 		for row := 0; row < 4; row++ {
-			// open image
-			filePath := path.Join(inputDir, fmt.Sprintf("%d", col), fmt.Sprintf("%d.png", row))
-			file, err := os.Open(filePath)
-			if err != nil {
-				log.Fatal(err)
-			}
-			img, _, err := image.Decode(file)
-			if err != nil {
-				log.Fatal(err)
-			}
+			waitGrp.Add(1)
 
-			// save in structure
-			images[col][row] = img
+			go func(col int, row int) {
+				defer waitGrp.Done()
 
-			// update col width / row height
+				// open image
+				filePath := path.Join(inputDir, fmt.Sprintf("%d", col), fmt.Sprintf("%d.png", row))
+				file, err := os.Open(filePath)
+				if err != nil {
+					log.Fatal(err)
+				}
+				img, _, err := image.Decode(file)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				// save in structure
+				images[col][row] = img
+			}(col, row)
+		}
+	}
+	waitGrp.Wait()
+
+	// update heights / widths
+	for col := 0; col < 4; col++ {
+		for row := 0; row < 4; row++ {
+			img := images[col][row]
+
 			imgWidth := uint(img.Bounds().Dx())
 			if imgWidth > widths[col] {
 				widths[col] = imgWidth
