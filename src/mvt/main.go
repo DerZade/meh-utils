@@ -22,7 +22,7 @@ import (
 // Run is the program's entrypoint
 func Run(flagSet *flag.FlagSet) {
 
-	collections  := make(map[string]*geojson.FeatureCollection)
+	collections := make(map[string]*geojson.FeatureCollection)
 	var timer time.Time
 	start := time.Now()
 
@@ -76,7 +76,7 @@ func Run(flagSet *flag.FlagSet) {
 	// loading GeoJSONSs
 	timer = time.Now()
 	fmt.Println("▶️  Loading GeoJSONs")
-	loadGeoJSONs(path.Join(*inputPtr, "geojson"), &collections )
+	loadGeoJSONs(path.Join(*inputPtr, "geojson"), &collections)
 	fmt.Println("✔️  Loaded layers from geojsons in", time.Now().Sub(timer).String())
 
 	// print loaded layers
