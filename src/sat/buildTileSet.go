@@ -11,7 +11,6 @@ import (
 	"path"
 	"runtime"
 	"sync"
-	"time"
 
 	"../utils"
 	"github.com/nfnt/resize"
@@ -21,8 +20,6 @@ import (
 // BuildTileSet builds tiles for given LOD from given combinedSatImage into outputDirectory
 func buildTileSet(lod uint8, combinedSatImage *image.RGBA, outputDirectory string) {
 	outputDirectory = path.Join(outputDirectory, fmt.Sprintf("%d", lod))
-
-	start := time.Now()
 
 	tilesPerRowCol := int(math.Pow(2, float64(lod)))
 
@@ -83,8 +80,6 @@ func buildTileSet(lod uint8, combinedSatImage *image.RGBA, outputDirectory strin
 	}
 
 	wg2.Wait()
-
-	fmt.Println("✔️  Finished tiles for LOD", lod, "in", time.Now().Sub(start).String())
 }
 
 var sem = semaphore.NewWeighted(int64(runtime.NumCPU()))

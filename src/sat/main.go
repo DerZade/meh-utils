@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"path"
-	"sync"
 	"time"
 
 	"../utils"
@@ -49,24 +48,20 @@ func Run(flagSet *flag.FlagSet) {
 	timer = time.Now()
 	fmt.Println("▶️  Combining satellite image")
 	combinedImg := combineSatImage(inputDir)
-	fmt.Println("✔️  Finished combining satellite image in", time.Now().Sub(timer).String())
+	fmt.Println("✔️  Combined satellite image in", time.Now().Sub(timer).String())
 
 	maxLod := calcMaxLod(combinedImg)
 
 	fmt.Println("ℹ️  Calculated max lod:", maxLod)
 
-	var wg sync.WaitGroup
+	timer = time.Now()
 	fmt.Println("▶️  Building tiles")
 	for lod := uint8(0); lod <= maxLod; lod++ {
-		wg.Add(1)
-		go func(lod uint8) {
-			defer wg.Done()
-			buildTileSet(lod, combinedImg, *outputPtr)
-		}(lod)
-
+		timer2 := time.Now()
+		buildTileSet(lod, combinedImg, *outputPtr)
+		fmt.Println("    ✔️  Finished tiles for LOD", lod, "in", time.Now().Sub(timer2).String())
 	}
-
-	wg.Wait()
+	fmt.Println("✔️  Built sat tiles in", time.Now().Sub(timer).String())
 
 	timer = time.Now()
 	fmt.Println("▶️  Creating sat.json")
