@@ -1,10 +1,10 @@
 package mvt
 
 import (
-    "encoding/json"
-    "io/ioutil"
-    "log"
-    "os"
+	"encoding/json"
+	"io/ioutil"
+	"log"
+	"os"
 )
 
 const defaultLayerSettings = `
@@ -16,6 +16,7 @@ const defaultLayerSettings = `
     { "layer": "locations/viewpoint", "minzoom": 0 },
     { "layer": "locations/namecity", "minzoom": 0 },
     { "layer": "locations/namecitycapital", "minzoom": 0 },
+    { "layer": "locations/namevillage", "minzoom": 0 },
     { "layer": "locations/namelocal", "minzoom": 0 },
     { "layer": "locations/namemarine", "minzoom": 0 },
     { "layer": "locations/airport", "minzoom": 0 },
@@ -53,6 +54,7 @@ const defaultLayerSettings = `
     { "layer": "roads/trail", "minzoom": 4 },
     { "layer": "water", "minzoom": 0 },
     { "layer": "forest", "minzoom": 3 },
+    { "layer": "rocks", "minzoom": 3 },
     { "layer": "contours_01", "minzoom": 8 },
     { "layer": "contours_05", "minzoom": 7, "maxzoom": 7 },
     { "layer": "contours_10", "minzoom": 5, "maxzoom": 6 },
@@ -61,36 +63,36 @@ const defaultLayerSettings = `
 ]`
 
 type layerSetting struct {
-    Layer   string  `json:"layer"`
-    MinZoom *uint16 `json:"minzoom,omitempty"`
-    MaxZoom *uint16 `json:"maxzoom,omitempty"`
+	Layer   string  `json:"layer"`
+	MinZoom *uint16 `json:"minzoom,omitempty"`
+	MaxZoom *uint16 `json:"maxzoom,omitempty"`
 }
 
 func loadLayerSettings(filePath string) []layerSetting {
 
-    var val []layerSetting
-    var byteValue []byte
+	var val []layerSetting
+	var byteValue []byte
 
-    if filePath == "" {
-        byteValue = []byte(defaultLayerSettings)
-    } else {
-        // Open our jsonFile
-        jsonFile, err := os.Open(filePath)
-        // if we os.Open returns an error then handle it
-        if err != nil {
-            log.Fatal(err)
-        }
+	if filePath == "" {
+		byteValue = []byte(defaultLayerSettings)
+	} else {
+		// Open our jsonFile
+		jsonFile, err := os.Open(filePath)
+		// if we os.Open returns an error then handle it
+		if err != nil {
+			log.Fatal(err)
+		}
 
-        // defer the closing of our jsonFile so that we can parse it later on
-        defer jsonFile.Close()
+		// defer the closing of our jsonFile so that we can parse it later on
+		defer jsonFile.Close()
 
-        // read our opened jsonFile as a byte array.
-        byteValue, _ = ioutil.ReadAll(jsonFile)
-    }
+		// read our opened jsonFile as a byte array.
+		byteValue, _ = ioutil.ReadAll(jsonFile)
+	}
 
-    // we unmarshal our byteArray which contains our
-    // jsonFile's content into 'val'
-    json.Unmarshal(byteValue, &val)
+	// we unmarshal our byteArray which contains our
+	// jsonFile's content into 'val'
+	json.Unmarshal(byteValue, &val)
 
-    return val
+	return val
 }
