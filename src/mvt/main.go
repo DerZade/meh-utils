@@ -27,7 +27,7 @@ func Run(flagSet *flag.FlagSet) {
 
 	outputPtr := flagSet.String("out", "", "Path to output directory")
 	inputPtr := flagSet.String("in", "", "Path to grad_meh map directory")
-	layerSettingsPtr := flagSet.String("layer-settings", "", "Path to layer_settings.json file")
+	layerSettingsPtr := flagSet.String("layer_settings", "", "Path to layer_settings.json file")
 
 	flagSet.Parse(os.Args[2:])
 
