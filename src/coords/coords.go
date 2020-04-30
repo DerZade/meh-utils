@@ -2,6 +2,7 @@ package coords
 
 import (
 	"errors"
+	"fmt"
 	"math"
 )
 
@@ -32,6 +33,8 @@ import (
  *
  */
 
+var latMax = float64(2)*math.Atan(math.Pow(math.E, math.Pi)) - math.Pi/2
+
 func rad2deg(rad float64) float64 { return (rad * (180.0 / math.Pi)) }
 func deg2rad(deg float64) float64 { return (deg * (math.Pi / 180.0)) }
 
@@ -54,6 +57,10 @@ func LatLng2Arma(worldSize float64, latLng LatLng) (ArmaXY, error) {
 		return ArmaXY{0, 0}, errors.New("worldSize must be larger than 0")
 	}
 
+	if latLng.Latitude > latMax {
+		return ArmaXY{0, 0}, fmt.Errorf("latitude must not be larger than %f", latMax)
+	}
+
 	var x, y float64
 
 	x = worldSize / (2 * math.Pi) * (deg2rad(latLng.Longitude) + math.Pi)
@@ -72,7 +79,7 @@ func Arma2LatLng(worldSize float64, pos ArmaXY) (LatLng, error) {
 	var latitude, longitude float64
 
 	latitude = 2*math.Atan(math.Pow(math.E, math.Pi*((2*pos.Y)/worldSize-1))) - math.Pi/2
-	longitude = (2*math.Pi*pos.X)/worldSize - math.Pi
+	longitude = math.Pi * ((2*pos.X)/worldSize - 1)
 
 	return LatLng{rad2deg(latitude), rad2deg(longitude)}, nil
 }
