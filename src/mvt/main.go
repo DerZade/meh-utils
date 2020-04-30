@@ -9,7 +9,6 @@ import (
 	"path"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"../metajson"
@@ -65,7 +64,10 @@ func Run(flagSet *flag.FlagSet) {
 	fmt.Println("✔️  Loaded meta.json in", time.Now().Sub(timer).String())
 
 	// load layerSettings
+	timer = time.Now()
+	fmt.Println("▶️  Loading meta.json")
 	layerSettings := loadLayerSettings(*layerSettingsPtr)
+	fmt.Println("✔️  Loaded layerSettings.json in", time.Now().Sub(timer).String())
 
 	// contour lines
 	timer = time.Now()
@@ -87,20 +89,6 @@ func Run(flagSet *flag.FlagSet) {
 	}
 	sort.Strings(layerNames)
 	fmt.Printf("%s\n", strings.Join(layerNames, ", "))
-
-	// convert layers
-	timer = time.Now()
-	fmt.Println("▶️  Converting coordinates of all layers to Web Mercator (EPSG:3857)")
-	waitGrp := sync.WaitGroup{}
-	for _, ptr := range collections {
-		waitGrp.Add(1)
-		go func(ptr *geojson.FeatureCollection) {
-			convertLayer(ptr, meta.WorldSize)
-			defer waitGrp.Done()
-		}(ptr)
-	}
-	waitGrp.Wait()
-	fmt.Println("✔️  Converted coordinates of all layers in", time.Now().Sub(timer).String())
 
 	// build mvts
 	timer = time.Now()

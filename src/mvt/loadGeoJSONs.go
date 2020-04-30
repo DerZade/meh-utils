@@ -3,14 +3,17 @@ package mvt
 import (
 	"compress/gzip"
 	"encoding/json"
-	geojson "github.com/paulmach/orb/geojson"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
+
+	geojson "github.com/paulmach/orb/geojson"
 )
+
+var layersMux = sync.Mutex{}
 
 func loadGeoJSONs(inputPath string, layers *map[string]*geojson.FeatureCollection) {
 	filePaths := []string{}
@@ -34,8 +37,13 @@ func loadGeoJSONs(inputPath string, layers *map[string]*geojson.FeatureCollectio
 		layerName := pathToLayerName(filePaths[i], inputPath)
 		waitGrp.Add(1)
 		go func(path string) {
-			(*layers)[layerName] = readGzippedGeoJSON(path)
 			defer waitGrp.Done()
+			fc := readGzippedGeoJSON(path)
+
+			layersMux.Lock()
+			(*layers)[layerName] = fc
+			layersMux.Unlock()
+
 		}(filePaths[i])
 	}
 
@@ -74,5 +82,5 @@ func readGzippedGeoJSON(geoJSONPath string) *geojson.FeatureCollection {
 
 	}
 
-	return &geojson.FeatureCollection{ Features: pointers}
+	return &geojson.FeatureCollection{Features: pointers}
 }
