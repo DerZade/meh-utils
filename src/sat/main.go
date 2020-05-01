@@ -64,7 +64,7 @@ func Run(flagSet *flag.FlagSet) {
 	fmt.Println("✔️  Built sat tiles in", time.Now().Sub(timer).String())
 
 	timer = time.Now()
-	fmt.Println("▶️  Creating sat.json")
+	fmt.Println("▶️  Creating tile.json")
 	writeTileJSON(*outputPtr, maxLod)
 	fmt.Println("✔️  Created tile.json in", time.Now().Sub(timer).String())
 

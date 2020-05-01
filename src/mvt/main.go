@@ -90,11 +90,20 @@ func Run(flagSet *flag.FlagSet) {
 	sort.Strings(layerNames)
 	fmt.Printf("%s\n", strings.Join(layerNames, ", "))
 
+	maxLod := calcMaxLod(meta.WorldSize)
+	fmt.Println("ℹ️  Calculated max lod:", maxLod)
+
 	// build mvts
 	timer = time.Now()
 	fmt.Println("▶️  Building mapbox vector tiles")
-	buildVectorTiles(*outputPtr, &collections, meta.WorldSize, &layerSettings)
+	buildVectorTiles(*outputPtr, &collections, maxLod, meta.WorldSize, &layerSettings)
 	fmt.Println("✔️  Built mapbox vector tiles in", time.Now().Sub(timer).String())
+
+	// write tile.json
+	timer = time.Now()
+	fmt.Println("▶️  Creating tile.json")
+	writeTileJSON(*outputPtr, maxLod)
+	fmt.Println("✔️  Created tile.json in", time.Now().Sub(timer).String())
 
 	fmt.Printf("\n    🎉  Finished in %s\n", time.Now().Sub(start).String())
 }

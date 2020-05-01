@@ -1,4 +1,4 @@
-package sat
+package mvt
 
 import (
 	"fmt"
@@ -15,7 +15,7 @@ const template = `
 `
 
 // writeTileJSON writes sat.json containing the maxLod to the sat.json into the outputDirectory
-func writeTileJSON(outputDirectory string, maxLod uint8) {
+func writeTileJSON(outputDirectory string, maxLod uint16) {
 	var err error
 
 	f, err := os.Create(path.Join(outputDirectory, "tile.json"))

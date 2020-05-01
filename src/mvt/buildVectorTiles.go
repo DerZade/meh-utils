@@ -22,10 +22,7 @@ import (
 
 const tileSize = mvt.DefaultExtent
 
-func buildVectorTiles(outputPath string, collectionsPtr *map[string]*geojson.FeatureCollection, worldSize float64, layerSettings *[]layerSetting) {
-
-	// TODO: calc maxLoad dynamically with worldSize
-	maxLod := uint16(8)
+func buildVectorTiles(outputPath string, collectionsPtr *map[string]*geojson.FeatureCollection, maxLod uint16, worldSize float64, layerSettings *[]layerSetting) {
 
 	for lod := uint16(0); lod <= maxLod; lod++ {
 		lodPath := path.Join(outputPath, fmt.Sprintf("%d", lod))
@@ -161,10 +158,10 @@ func createTile(x uint32, y uint32, layers mvt.Layers) ([]byte, error) {
 		}
 	})
 
-	// add 1 as padding to make sure geos are not cut directly at the tile border
-	lClone.Clip(orb.Bound{Min: orb.Point{-1, -1}, Max: orb.Point{tileSize + 1, tileSize + 1}})
+	// add tileSize/4 as padding to make sure geos are not cut directly at the tile border
+	lClone.Clip(orb.Bound{Min: orb.Point{-tileSize / 4, -tileSize / 4}, Max: orb.Point{tileSize + tileSize/4, tileSize + tileSize/4}})
 
-	lClone.RemoveEmpty(1.0, 1.0)
+	lClone.RemoveEmpty(0.1, 0.1)
 
 	data, err := mvt.MarshalGzipped(lClone)
 	if err != nil {
