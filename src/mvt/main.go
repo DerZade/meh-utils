@@ -102,7 +102,7 @@ func Run(flagSet *flag.FlagSet) {
 	// write tile.json
 	timer = time.Now()
 	fmt.Println("▶️  Creating tile.json")
-	writeTileJSON(*outputPtr, maxLod)
+	writeTileJSON(*outputPtr, maxLod, layerNames)
 	fmt.Println("✔️  Created tile.json in", time.Now().Sub(timer).String())
 
 	fmt.Printf("\n    🎉  Finished in %s\n", time.Now().Sub(start).String())
