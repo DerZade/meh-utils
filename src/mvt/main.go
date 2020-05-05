@@ -72,7 +72,7 @@ func Run(flagSet *flag.FlagSet) {
 	// contour lines
 	timer = time.Now()
 	fmt.Println("▶️  Building countour lines")
-	buildContours(path.Join(*inputPtr, "dem.asc.gz"), meta.ElevationOffset)
+	buildContours(path.Join(*inputPtr, "dem.asc.gz"), meta.ElevationOffset, &collections)
 	fmt.Println("✔️  Built contour lines in", time.Now().Sub(timer).String())
 
 	// loading GeoJSONSs
