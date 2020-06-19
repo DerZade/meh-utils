@@ -14,7 +14,7 @@ func ParseEsriASCIIRaster(reader io.Reader) (EsriASCIIRaster, error) {
 	raster := EsriASCIIRaster{}
 	remHeaderKeywords := []string{"NCOLS", "NROWS", "XLLCENTER", "XLLCORNER", "YLLCENTER", "YLLCORNER", "CELLSIZE", "NODATA_VALUE"}
 	stillIsHeader := true
-	rowIndex := uint64(0)
+	rowIndex := uint(0)
 	var esriData [][]float64
 
 	scanner := bufio.NewScanner(reader)
@@ -84,17 +84,17 @@ func parseHeaderLine(fields []string, grid *EsriASCIIRaster) error {
 
 	switch strings.ToUpper(fields[0]) {
 	case "NCOLS":
-		i, err := strconv.ParseUint(fields[1], 10, 64)
+		i, err := strconv.ParseUint(fields[1], 10, 32)
 		if err != nil {
 			return err
 		}
-		(*grid).Ncols = i
+		(*grid).Ncols = uint(i)
 	case "NROWS":
-		i, err := strconv.ParseUint(fields[1], 10, 64)
+		i, err := strconv.ParseUint(fields[1], 10, 32)
 		if err != nil {
 			return err
 		}
-		(*grid).Nrows = i
+		(*grid).Nrows = uint(i)
 	case "XLLCENTER":
 		f, err := strconv.ParseFloat(fields[1], 64)
 		if err != nil {
@@ -146,14 +146,14 @@ func parseHeaderLine(fields []string, grid *EsriASCIIRaster) error {
 	return nil
 }
 
-func parseDataLine(fields []string, cols uint64) ([]float64, error) {
+func parseDataLine(fields []string, cols uint) ([]float64, error) {
 	row := make([]float64, cols)
 
-	if uint64(len(fields)) < cols {
+	if uint(len(fields)) < cols {
 		return row, fmt.Errorf("DEM data row is too short")
 	}
 
-	for i := uint64(0); i < cols; i++ {
+	for i := uint(0); i < cols; i++ {
 		f, err := strconv.ParseFloat(fields[i], 64)
 		if err != nil {
 			return row, err

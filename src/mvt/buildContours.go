@@ -37,8 +37,8 @@ func buildContours(demPath string, elevOffset float64, layers *map[string]*geojs
 	// find max / min height in DEM
 	max := float64(0)
 	min := float64(0)
-	for row := uint64(0); row < raster.Nrows; row++ {
-		for col := uint64(0); col < raster.Ncols; col++ {
+	for row := uint(0); row < raster.Nrows; row++ {
+		for col := uint(0); col < raster.Ncols; col++ {
 			d := raster.Data[row][col]
 
 			if d < min {

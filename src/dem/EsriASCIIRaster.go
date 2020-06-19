@@ -2,7 +2,7 @@ package dem
 
 // EsriASCIIRaster represents a ESRI ASCII Grid
 type EsriASCIIRaster struct {
-	Ncols, Nrows     uint64
+	Ncols, Nrows     uint
 	Xcenter, Ycenter float64
 	Xcorner, Ycorner float64
 	CellSize         float64
