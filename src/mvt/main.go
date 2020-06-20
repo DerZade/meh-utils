@@ -50,7 +50,7 @@ func Run(flagSet *flag.FlagSet) {
 	// validate input directory structure
 	err := validate.MehDirectory(*inputPtr)
 	if err != nil {
-		log.Fatal(errors.New("Output directory doesn't exists"))
+		log.Fatal(errors.New("Input directory doesn't exsist or doesn't have correct structre"))
 	}
 	fmt.Println("✔️  Validated input directory structure")
 
