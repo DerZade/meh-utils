@@ -1,6 +1,8 @@
 package dem
 
-import "github.com/paulmach/orb"
+import (
+	"github.com/paulmach/orb"
+)
 
 // MarchingSquares calculates the contour lines for given raster and height and adds those to the given array
 func MarchingSquares(raster *EsriASCIIRaster, height float64) []orb.LineString {
@@ -11,52 +13,42 @@ func MarchingSquares(raster *EsriASCIIRaster, height float64) []orb.LineString {
 			newLines := calcLinesForColRow(raster, col, row, height)
 
 			for _, newLine := range newLines {
-				didCombine := false
-
+				// find all lines which can be combined with newLine
+				combinableIndicies := []int{}
 				for j := 0; j < len(lines); j++ {
-					didCombineCur, combinedLine := combineLines(newLine, lines[j])
+					canCombine, _ := canCombineLines(newLine, lines[j])
 
-					didCombine = didCombineCur || didCombine
+					if canCombine {
+						combinableIndicies = append(combinableIndicies, j)
 
-					if didCombineCur {
-						lines[j] = combinedLine
-						break
+						if len(combinableIndicies) == 2 {
+							break
+						}
 					}
 				}
 
-				if !didCombine {
+				if len(combinableIndicies) == 0 {
+					// no line was found which could be combined
 					lines = append(lines, newLine)
+				} else {
+					// combine all combinable lines
+					combinedLine := newLine
+					for _, index := range combinableIndicies {
+						_, combinedLine = combineLines(combinedLine, lines[index])
+					}
+
+					// add combined line to array
+					lines[combinableIndicies[0]] = combinedLine
+
+					if len(combinableIndicies) == 2 {
+						// Remove the element at index combinableIndicies[1] from lines.
+						lines[combinableIndicies[1]] = lines[len(lines)-1] // Copy last element to index combinableIndicies[1].
+						lines[len(lines)-1] = nil                          // Erase last element (write zero value).
+						lines = lines[:len(lines)-1]                       // Truncate slice.
+					}
 				}
 			}
 		}
-	}
-
-	return dissolveLines(lines)
-}
-
-func dissolveLines(lines []orb.LineString) []orb.LineString {
-	for i := 0; i < len(lines); i++ {
-		prevLen := len(lines) + 1
-		for prevLen > len(lines) {
-			prevLen = len(lines)
-			for j := i + 1; j < len(lines); j++ {
-				didCombine, combinedLine := combineLines(lines[i], lines[j])
-
-				if didCombine {
-					// add combined line as "current" line
-					lines[i] = combinedLine
-
-					// remove element
-					lines[j] = lines[len(lines)-1] // Copy last element to index i.
-					lines[len(lines)-1] = nil      // Erase last element (write zero value).
-					lines = lines[:len(lines)-1]   // Truncate slice.
-
-					// because now the previously last element is on the current index we want to visit that index again
-					j--
-				}
-			}
-		}
-
 	}
 
 	return lines
@@ -150,30 +142,45 @@ func interpolate(c0, h0, c1, h1, height float64) float64 {
 	return (c0*(h1-height) + c1*(height-h0)) / (h1 - h0)
 }
 
-// combineLines checks wether line1 and line2 can be combined. If they can the combined-line will be returned
-func combineLines(l1 orb.LineString, l2 orb.LineString) (bool, orb.LineString) {
+// canCombineLines checks wether two lines can be combined (second bool is whether l2, l1 have to be reversed to be combined)
+func canCombineLines(l1 orb.LineString, l2 orb.LineString) (bool, bool) {
 	len1 := len(l1) - 1
 	len2 := len(l2) - 1
 
 	if l1[len1].Equal(l2[0]) {
-		return true, stitchLines(l1, l2)
+		return true, false
 	}
 
 	if l2[len2].Equal(l1[0]) {
-		return true, stitchLines(l2, l1)
+		return true, true
 	}
 
 	l2.Reverse()
 
 	if l1[len1].Equal(l2[0]) {
-		return true, stitchLines(l1, l2)
+		return true, false
 	}
 
 	if l2[len2].Equal(l1[0]) {
+		return true, true
+	}
+
+	return false, false
+}
+
+// combineLines checks wether line1 and line2 can be combined. If they can the combined-line will be returned
+func combineLines(l1 orb.LineString, l2 orb.LineString) (bool, orb.LineString) {
+	canCombine, reversed := canCombineLines(l1, l2)
+
+	if !canCombine {
+		return false, nil
+	}
+
+	if reversed {
 		return true, stitchLines(l2, l1)
 	}
 
-	return false, nil
+	return true, stitchLines(l1, l2)
 }
 
 // stitchLines appends all points of line2 (except the first one) to line1
