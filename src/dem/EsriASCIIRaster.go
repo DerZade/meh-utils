@@ -25,12 +25,12 @@ func (raster EsriASCIIRaster) Z(c, r uint) float64 {
 // It will panic if c is out of bounds for the grid.
 func (raster EsriASCIIRaster) X(c uint) float64 {
 	// TODO: Use Xcenter, Xcorner
-	return float64(c)*raster.CellSize + raster.CellSize/2
+	return float64(c) * raster.CellSize
 }
 
 // Y returns the coordinate for the row at the index r.
 // It will panic if r is out of bounds for the grid.
 func (raster EsriASCIIRaster) Y(r uint) float64 {
 	// TODO: Use Ycenter, Ycorner
-	return float64(raster.Ncols)*raster.CellSize - float64(r)*raster.CellSize + raster.CellSize/2
+	return float64(raster.Ncols)*raster.CellSize - float64(r)*raster.CellSize
 }
