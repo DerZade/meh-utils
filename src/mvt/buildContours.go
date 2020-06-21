@@ -6,12 +6,15 @@ import (
 	"os"
 	"sync"
 
+	"github.com/paulmach/orb"
+
 	"github.com/paulmach/orb/geojson"
+	"github.com/paulmach/orb/planar"
 
 	dem "../dem"
 )
 
-func buildContours(demPath string, elevOffset float64, layers *map[string]*geojson.FeatureCollection) {
+func buildContours(demPath string, elevOffset float64, worldSize float64, layers *map[string]*geojson.FeatureCollection) {
 	file, err := os.Open(demPath)
 	if err != nil {
 		log.Fatal(err)
@@ -54,6 +57,9 @@ func buildContours(demPath string, elevOffset float64, layers *map[string]*geojs
 	contours10 := geojson.NewFeatureCollection()
 	contours50 := geojson.NewFeatureCollection()
 	contours100 := geojson.NewFeatureCollection()
+	water := geojson.NewFeatureCollection()
+
+	waterLines := []orb.LineString{}
 
 	// height will
 	for height := float64(int(min) - 1); height < max; height++ {
@@ -82,14 +88,70 @@ func buildContours(demPath string, elevOffset float64, layers *map[string]*geojs
 					contours100.Append(f)
 				}
 			}
+			if int(height) == 0 {
+				waterLines = lines
+			}
 		}(height)
 	}
 
 	waitGrp.Wait()
+
+	// build water
+	if len(waterLines) > 0 {
+		poly := orb.Polygon{}
+
+		for _, line := range waterLines {
+			r := orb.Ring(line)
+
+			if !r.Closed() {
+				r = append(r, r[0])
+			}
+
+			poly = append(poly, r)
+		}
+
+		polygonIsLand := false
+
+		// find pos in DEM which is above / below 0
+		col := uint(0)
+		row := uint(0)
+		height := raster.Z(col, row)
+		for height < 0.1 && height > -0.1 {
+			col++
+
+			if col >= raster.Ncols {
+				row++
+				col = 0
+			}
+		}
+
+		// polygon represents land if point is in poly and height is above 0 or point isn't in poly and height is below 0
+		point := orb.Point{raster.X(col), raster.Y(row)}
+		if planar.PolygonContains(poly, point) {
+			polygonIsLand = height > 0
+		} else {
+			polygonIsLand = height < 0
+		}
+
+		if polygonIsLand {
+			p1 := orb.Point{0, 0}
+			p2 := orb.Point{0, worldSize}
+			p3 := orb.Point{worldSize, worldSize}
+			p4 := orb.Point{worldSize, 0}
+			surroudingRing := orb.Ring{p1, p2, p3, p4, p1}
+
+			// prepend surroudingRing to rings
+			poly = append([]orb.Ring{surroudingRing}, poly...)
+		}
+
+		f := geojson.NewFeature(poly)
+		water.Append(f)
+	}
 
 	(*layers)["contours/01"] = contours01
 	(*layers)["contours/05"] = contours05
 	(*layers)["contours/10"] = contours10
 	(*layers)["contours/50"] = contours50
 	(*layers)["contours/100"] = contours100
+	(*layers)["water"] = water
 }
