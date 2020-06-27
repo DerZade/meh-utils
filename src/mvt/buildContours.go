@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/paulmach/orb"
-
 	"github.com/paulmach/orb/geojson"
 	"github.com/paulmach/orb/planar"
 
@@ -135,9 +134,9 @@ func buildContours(demPath string, elevOffset float64, worldSize float64, layers
 
 		if polygonIsLand {
 			p1 := orb.Point{0, 0}
-			p2 := orb.Point{0, worldSize}
+			p2 := orb.Point{worldSize, 0}
 			p3 := orb.Point{worldSize, worldSize}
-			p4 := orb.Point{worldSize, 0}
+			p4 := orb.Point{0, worldSize}
 			surroudingRing := orb.Ring{p1, p2, p3, p4, p1}
 
 			// prepend surroudingRing to rings
