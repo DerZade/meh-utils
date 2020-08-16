@@ -57,6 +57,7 @@ func buildContours(demPath string, elevOffset float64, worldSize float64, layers
 	contours50 := geojson.NewFeatureCollection()
 	contours100 := geojson.NewFeatureCollection()
 	water := geojson.NewFeatureCollection()
+	land := geojson.NewFeatureCollection()
 
 	waterLines := []orb.LineString{}
 
@@ -95,6 +96,12 @@ func buildContours(demPath string, elevOffset float64, worldSize float64, layers
 
 	waitGrp.Wait()
 
+	p1 := orb.Point{0, 0}
+	p2 := orb.Point{worldSize, 0}
+	p3 := orb.Point{worldSize, worldSize}
+	p4 := orb.Point{0, worldSize}
+	wholeMapFeature := geojson.NewFeature(orb.Polygon{orb.Ring{p1, p2, p3, p4, p1}})
+
 	// build water
 	if len(waterLines) > 0 {
 		poly := orb.Polygon{}
@@ -132,19 +139,17 @@ func buildContours(demPath string, elevOffset float64, worldSize float64, layers
 			polygonIsLand = height < 0
 		}
 
+		polyFeature := geojson.NewFeature(poly)
 		if polygonIsLand {
-			p1 := orb.Point{0, 0}
-			p2 := orb.Point{worldSize, 0}
-			p3 := orb.Point{worldSize, worldSize}
-			p4 := orb.Point{0, worldSize}
-			surroudingRing := orb.Ring{p1, p2, p3, p4, p1}
-
-			// prepend surroudingRing to rings
-			poly = append([]orb.Ring{surroudingRing}, poly...)
+			water.Append(wholeMapFeature)
+			land.Append(polyFeature)
+		} else {
+			land.Append(wholeMapFeature)
+			water.Append(polyFeature)
 		}
 
-		f := geojson.NewFeature(poly)
-		water.Append(f)
+	} else {
+		land.Append(wholeMapFeature)
 	}
 
 	(*layers)["contours/01"] = contours01
@@ -153,4 +158,5 @@ func buildContours(demPath string, elevOffset float64, worldSize float64, layers
 	(*layers)["contours/50"] = contours50
 	(*layers)["contours/100"] = contours100
 	(*layers)["water"] = water
+	(*layers)["land"] = land
 }
