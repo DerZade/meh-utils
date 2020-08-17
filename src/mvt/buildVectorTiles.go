@@ -14,6 +14,7 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	"github.com/paulmach/orb/project"
+	"github.com/paulmach/orb/simplify"
 
 	"../utils"
 	"github.com/paulmach/orb/encoding/mvt"
@@ -58,6 +59,11 @@ func buildLODVectorTiles(lod uint16, lodDir string, collectionsPtr *map[string]*
 			(worldSize - p[1]) * factor,
 		}
 	})
+
+	// set layer version to v2
+	for _, l := range layers {
+		l.Version = 2
+	}
 
 	colWaitGrp := sync.WaitGroup{}
 
@@ -160,8 +166,8 @@ func createTile(x uint32, y uint32, layers mvt.Layers) ([]byte, error) {
 
 	// add tileSize/4 as padding to make sure geos are not cut directly at the tile border
 	lClone.Clip(orb.Bound{Min: orb.Point{-tileSize / 4, -tileSize / 4}, Max: orb.Point{tileSize + tileSize/4, tileSize + tileSize/4}})
-
-	lClone.RemoveEmpty(0.1, 0.1)
+	lClone.Simplify(simplify.DouglasPeucker(1.0))
+	lClone.RemoveEmpty(1.0, 1.0)
 
 	data, err := mvt.MarshalGzipped(lClone)
 	if err != nil {

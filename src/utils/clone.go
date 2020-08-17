@@ -37,15 +37,19 @@ func DeepCloneFeatureCollection(fc *geojson.FeatureCollection) *geojson.FeatureC
 }
 
 // DeepCloneLayers deep clones given layers
-func DeepCloneLayers(l mvt.Layers) mvt.Layers {
+func DeepCloneLayers(layers mvt.Layers) mvt.Layers {
 
-	fcs := l.ToFeatureCollections()
+	newLayers := make(mvt.Layers, len(layers))
 
-	for key, fc := range fcs {
-		fcs[key] = DeepCloneFeatureCollection(fc)
+	for index, l := range layers {
+		fc := DeepCloneFeatureCollection(&geojson.FeatureCollection{Features: l.Features})
+		newLayers[index] = &mvt.Layer{
+			Name:     l.Name,
+			Version:  l.Version,
+			Extent:   l.Extent,
+			Features: fc.Features,
+		}
 	}
 
-	newL := mvt.NewLayers(fcs)
-
-	return newL
+	return newLayers
 }
