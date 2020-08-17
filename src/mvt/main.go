@@ -65,7 +65,7 @@ func Run(flagSet *flag.FlagSet) {
 
 	// load layerSettings
 	timer = time.Now()
-	fmt.Println("▶️  Loading meta.json")
+	fmt.Println("▶️  Loading layerSettings.json")
 	layerSettings := loadLayerSettings(*layerSettingsPtr)
 	fmt.Println("✔️  Loaded layerSettings.json in", time.Now().Sub(timer).String())
 
