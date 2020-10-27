@@ -3,6 +3,7 @@ package mvt
 import (
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -39,6 +40,15 @@ func loadGeoJSONs(inputPath string, layers *map[string]*geojson.FeatureCollectio
 		go func(path string) {
 			defer waitGrp.Done()
 			fc := readGzippedGeoJSON(path)
+
+			// we want to have the color of the houses as a rgba-string not as an array [r,g,b,a] with r, g, b and a beeing numbers from 0 to 255
+			if layerName == "house" {
+				for _, feature := range (*fc).Features {
+					color := feature.Properties["color"].([]interface{})
+
+					feature.Properties["color"] = fmt.Sprintf("rgba(%.0f, %.0f, %.0f, %.0f)", color[0], color[1], color[2], color[3].(float64)/255)
+				}
+			}
 
 			layersMux.Lock()
 			(*layers)[layerName] = fc
