@@ -53,7 +53,6 @@ const defaultLayerSettings = `
     { "layer": "roads/track", "minzoom": 3 },
     { "layer": "roads/trail", "minzoom": 4 },
     { "layer": "water", "minzoom": 0 },
-    { "layer": "land", "minzoom": 0 },
     { "layer": "forest", "minzoom": 3 },
     { "layer": "rocks", "minzoom": 3 },
     { "layer": "contours/01", "minzoom": 8 },
