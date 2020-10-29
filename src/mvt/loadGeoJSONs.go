@@ -46,7 +46,7 @@ func loadGeoJSONs(inputPath string, layers *map[string]*geojson.FeatureCollectio
 				for _, feature := range (*fc).Features {
 					color := feature.Properties["color"].([]interface{})
 
-					feature.Properties["color"] = fmt.Sprintf("rgba(%.0f, %.0f, %.0f, %.0f)", color[0], color[1], color[2], color[3].(float64)/255)
+					feature.Properties["color"] = fmt.Sprintf("rgb(%.0f, %.0f, %.0f)", color[0], color[1], color[2])
 				}
 			}
 
