@@ -167,8 +167,7 @@ func createTile(x uint32, y uint32, layers mvt.Layers) ([]byte, error) {
 		}
 	})
 
-	// add tileSize/4 as padding to make sure geos are not cut directly at the tile border
-	lClone.Clip(orb.Bound{Min: orb.Point{-tileSize / 4, -tileSize / 4}, Max: orb.Point{tileSize + tileSize/4, tileSize + tileSize/4}})
+	lClone.Clip(mvt.MapboxGLDefaultExtentBound)
 	lClone.RemoveEmpty(0, 0)
 
 	data, err := mvt.MarshalGzipped(lClone)
