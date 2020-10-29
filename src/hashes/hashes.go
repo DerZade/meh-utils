@@ -1,4 +1,0 @@
-package hashes
-
-func main() {
-}
