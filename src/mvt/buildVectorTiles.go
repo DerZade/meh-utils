@@ -65,6 +65,9 @@ func buildLODVectorTiles(lod uint16, lodDir string, collectionsPtr *map[string]*
 		l.Version = 2
 	}
 
+	layers.Simplify(simplify.DouglasPeucker(1.0))
+	layers.RemoveEmpty(1.0, 1.0)
+
 	colWaitGrp := sync.WaitGroup{}
 
 	sem := semaphore.NewWeighted(int64(runtime.NumCPU()))
@@ -166,8 +169,7 @@ func createTile(x uint32, y uint32, layers mvt.Layers) ([]byte, error) {
 
 	// add tileSize/4 as padding to make sure geos are not cut directly at the tile border
 	lClone.Clip(orb.Bound{Min: orb.Point{-tileSize / 4, -tileSize / 4}, Max: orb.Point{tileSize + tileSize/4, tileSize + tileSize/4}})
-	lClone.Simplify(simplify.DouglasPeucker(1.0))
-	lClone.RemoveEmpty(1.0, 1.0)
+	lClone.RemoveEmpty(0, 0)
 
 	data, err := mvt.MarshalGzipped(lClone)
 	if err != nil {
