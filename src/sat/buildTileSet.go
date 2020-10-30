@@ -38,7 +38,6 @@ func buildTileSet(lod uint8, combinedSatImage *image.RGBA, outputDirectory strin
 			}
 		}(col)
 	}
-
 	wg.Wait()
 
 	resizedImg := resize.Resize(256*tilesPerRowCol, 256*tilesPerRowCol, combinedSatImage, resize.MitchellNetravali).(*image.RGBA)
@@ -80,5 +79,10 @@ func createTile(combinedSatImage *image.RGBA, col, row uint, tilePath string) {
 	}
 	png.Encode(out, subImg)
 
+	err = out.Close()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	sem.Release(1)
 }

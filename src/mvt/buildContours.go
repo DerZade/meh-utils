@@ -3,7 +3,6 @@ package mvt
 import (
 	"compress/gzip"
 	"log"
-	"math"
 	"os"
 	"sync"
 
@@ -25,27 +24,34 @@ func buildContours(demPath string, elevOffset float64, worldSize float64, layers
 		log.Fatal(err)
 	}
 
-	defer file.Close()
-	defer gz.Close()
-
 	raster, err := dem.ParseEsriASCIIRaster(gz)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// find max / min height in DEM
-	max := float64(0)
-	min := float64(0)
+	err = file.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = gz.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// find max / min elevation in DEM
+	maxElevation := float64(0)
+	minElevation := float64(0)
 	for row := uint(0); row < raster.Nrows; row++ {
 		for col := uint(0); col < raster.Ncols; col++ {
 			d := raster.Data[row][col]
 
-			if d < min {
-				min = d
+			if d < minElevation {
+				minElevation = d
 			}
 
-			if d > max {
-				max = d
+			if d > maxElevation {
+				maxElevation = d
 			}
 		}
 	}
@@ -57,22 +63,20 @@ func buildContours(demPath string, elevOffset float64, worldSize float64, layers
 	contours10 := geojson.NewFeatureCollection()
 	contours50 := geojson.NewFeatureCollection()
 	contours100 := geojson.NewFeatureCollection()
-	water := geojson.NewFeatureCollection()
 
 	waterLines := []orb.LineString{}
 
-	// height will
-	for height := float64(int(min) - 1); height < max; height++ {
+	for elevation := int(minElevation - 1); elevation < int(maxElevation+1); elevation++ {
 		waitGrp.Add(1)
-		go func(height float64) {
+		go func(elev int) {
 			defer waitGrp.Done()
 
-			lines := dem.MarchingSquares(&raster, height)
+			lines := dem.MarchingSquares(&raster, float64(elev))
 
 			// add lines to correct feature collection
-			for i := 0; i < len(lines); i++ {
-				f := geojson.NewFeature(lines[i])
-				h := int(height)
+			for _, line := range lines {
+				f := geojson.NewFeature(line)
+				h := int(elev)
 				f.Properties["elevation"] = h
 				contours01.Append(f)
 				if h%5 == 0 {
@@ -88,32 +92,29 @@ func buildContours(demPath string, elevOffset float64, worldSize float64, layers
 					contours100.Append(f)
 				}
 			}
-			if int(height) == 0 {
+
+			if elev == 0 {
 				waterLines = lines
 			}
-		}(height)
+		}(elevation)
 	}
 
 	waitGrp.Wait()
-
-	// build water
-	if len(waterLines) > 0 {
-		polys := buildWater(waterLines, worldSize, &raster)
-
-		for _, poly := range polys {
-			water.Append(geojson.NewFeature(poly))
-		}
-	}
 
 	(*layers)["contours/01"] = contours01
 	(*layers)["contours/05"] = contours05
 	(*layers)["contours/10"] = contours10
 	(*layers)["contours/50"] = contours50
 	(*layers)["contours/100"] = contours100
-	(*layers)["water"] = water
+
+	// build water
+	if len(waterLines) > 0 {
+		(*layers)["water"] = buildWater(waterLines, worldSize, &raster)
+	}
+
 }
 
-func buildWater(lines []orb.LineString, worldSize float64, raster *dem.EsriASCIIRaster) []orb.Polygon {
+func buildWater(lines []orb.LineString, worldSize float64, raster *dem.EsriASCIIRaster) *geojson.FeatureCollection {
 	rings := make(map[int]orb.Ring)
 
 	// normalize rings
@@ -191,6 +192,7 @@ func buildWater(lines []orb.LineString, worldSize float64, raster *dem.EsriASCII
 
 	// A: height > 0
 	// B: numOfContainingRings%2 == 0
+	//
 	// if point is above 0 and the number of rings, which contain point is..
 	//     ...even -> map isn't island (A && B)
 	//     ...odd -> map is island (A && !B)
@@ -222,19 +224,23 @@ func buildWater(lines []orb.LineString, worldSize float64, raster *dem.EsriASCII
 	}
 
 	maxNumOfParents := 0
+
 	// make sure rings are right winding order
 	for id, ring := range rings {
 		numOfParents := ringNumberOfParents[id]
 
-		maxNumOfParents = int(math.Max(float64(maxNumOfParents), float64(numOfParents)))
+		if numOfParents > maxNumOfParents {
+			maxNumOfParents = numOfParents
+		}
 
 		if numOfParents%2 == 1 {
 			ring.Reverse()
 		}
 	}
 
-	// create polygons
-	polys := make([]orb.Polygon, 0)
+	waterFeatureCollection := geojson.NewFeatureCollection()
+
+	// create actual features
 	for level := maxNumOfParents - maxNumOfParents%2; level >= 0; level = level - 2 {
 		for ringID, ring := range rings {
 			if ringNumberOfParents[ringID] != level {
@@ -244,7 +250,7 @@ func buildWater(lines []orb.LineString, worldSize float64, raster *dem.EsriASCII
 			poly := orb.Polygon{ring}
 			delete(rings, ringID)
 
-			// add all rings that are contained in current ring
+			// add all holes that are contained in current ring
 			holes := ringsByParent[ringID]
 			for _, id := range holes {
 				hole, found := rings[id]
@@ -255,11 +261,11 @@ func buildWater(lines []orb.LineString, worldSize float64, raster *dem.EsriASCII
 				}
 			}
 
-			polys = append(polys, poly)
+			waterFeatureCollection.Append(geojson.NewFeature(poly))
 		}
 	}
 
-	return polys
+	return waterFeatureCollection
 }
 
 func ringContainsRing(parent *orb.Ring, child *orb.Ring) bool {

@@ -40,6 +40,11 @@ func combineSatImage(inputDir string) *image.RGBA {
 					log.Fatal(err)
 				}
 
+				file.Close()
+				if err != nil {
+					log.Fatal(err)
+				}
+
 				// save in structure
 				images[col][row] = img
 			}(col, row)
@@ -81,8 +86,6 @@ func combineSatImage(inputDir string) *image.RGBA {
 			draw.Draw(combinedImage, r, *img, image.Point{0, 0}, draw.Src)
 		}
 	}
-
-	// TODO: Trim img
 
 	return combinedImage
 }
