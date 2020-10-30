@@ -3,6 +3,7 @@ package mvt
 import (
 	"compress/gzip"
 	"log"
+	"math"
 	"os"
 	"sync"
 
@@ -97,54 +98,11 @@ func buildContours(demPath string, elevOffset float64, worldSize float64, layers
 
 	// build water
 	if len(waterLines) > 0 {
-		poly := orb.Polygon{}
+		polys := buildWater(waterLines, worldSize, &raster)
 
-		for _, line := range waterLines {
-			r := orb.Ring(line)
-
-			if !r.Closed() {
-				r = append(r, r[0])
-			}
-
-			poly = append(poly, r)
+		for _, poly := range polys {
+			water.Append(geojson.NewFeature(poly))
 		}
-
-		polygonIsLand := false
-
-		// find pos in DEM which is above / below 0
-		col := uint(0)
-		row := uint(0)
-		height := raster.Z(col, row)
-		for height < 0.1 && height > -0.1 {
-			col++
-
-			if col >= raster.Ncols {
-				row++
-				col = 0
-			}
-		}
-
-		// polygon represents land if point is in poly and height is above 0 or point isn't in poly and height is below 0
-		point := orb.Point{raster.X(col), raster.Y(row)}
-		if planar.PolygonContains(poly, point) {
-			polygonIsLand = height > 0
-		} else {
-			polygonIsLand = height < 0
-		}
-
-		if polygonIsLand {
-			wholeMap := orb.Ring{
-				orb.Point{0, 0},
-				orb.Point{worldSize, 0},
-				orb.Point{worldSize, worldSize},
-				orb.Point{0, worldSize},
-				orb.Point{0, 0},
-			}
-
-			poly = append([]orb.Ring{wholeMap}, poly...)
-		}
-
-		water.Append(geojson.NewFeature(poly))
 	}
 
 	(*layers)["contours/01"] = contours01
@@ -153,4 +111,165 @@ func buildContours(demPath string, elevOffset float64, worldSize float64, layers
 	(*layers)["contours/50"] = contours50
 	(*layers)["contours/100"] = contours100
 	(*layers)["water"] = water
+}
+
+func buildWater(lines []orb.LineString, worldSize float64, raster *dem.EsriASCIIRaster) []orb.Polygon {
+	rings := make(map[int]orb.Ring)
+
+	// normalize rings
+	for index, line := range lines {
+		r := orb.Ring(line)
+
+		// close all rings
+		if !r.Closed() {
+			r = append(r, r[0])
+		}
+
+		// make sure the ring is winding order = clockwise
+		// https://stackoverflow.com/a/1165943
+		sum := float64(0)
+		for i := 1; i < len(r); i++ {
+			p1 := r[i-1]
+			p2 := r[i]
+			sum += (p2[0] - p1[0]) * (p2[1] + p1[1])
+		}
+		if sum < 0 {
+			r.Reverse()
+		}
+
+		rings[index] = r
+	}
+
+	// ring-id -> array of rings which this rings contains
+	ringsByParent := make(map[int][]int)
+
+	// ring-id -> number of parents
+	ringNumberOfParents := make(map[int]int)
+
+	// fill ringsByParent and ringNumberOfParents
+	for id, ring := range rings {
+		childIndices := []int{}
+
+		for childID, childRing := range rings {
+			// we don't need to compare the ring to itself
+			if id == childID {
+				continue
+			}
+
+			if ringContainsRing(&ring, &childRing) {
+				childIndices = append(childIndices, childID)
+				ringNumberOfParents[childID]++
+			}
+		}
+
+		ringsByParent[id] = childIndices
+	}
+
+	// find pos in DEM which is "significally" above / below 0
+	col := uint(0)
+	row := uint(0)
+	height := raster.Z(col, row)
+	for height < 0.1 && height > -0.1 {
+		col++
+
+		if col >= raster.Ncols {
+			row++
+			col = 0
+		}
+
+		height = raster.Z(col, row)
+	}
+	point := orb.Point{raster.X(col), raster.Y(row)}
+
+	// find number of rings which contain point
+	numOfContainingRings := 0
+	for _, ring := range rings {
+		if planar.RingContains(ring, point) {
+			numOfContainingRings++
+		}
+	}
+
+	// A: height > 0
+	// B: numOfContainingRings%2 == 0
+	// if point is above 0 and the number of rings, which contain point is..
+	//     ...even -> map isn't island (A && B)
+	//     ...odd -> map is island (A && !B)
+	// if point is below 0 and the number of rings, which contain point is..
+	//     ...even -> map is island (!A && B)
+	//     ...odd -> map isn't island (!A && !B)
+	isIsland := (height > 0) != (numOfContainingRings%2 == 0)
+
+	if isIsland {
+		wholeMapRingIndex := -1
+
+		wholeMapRing := orb.Ring{
+			orb.Point{0, 0},
+			orb.Point{0, worldSize},
+			orb.Point{worldSize, worldSize},
+			orb.Point{worldSize, 0},
+			orb.Point{0, 0},
+		}
+
+		childRings := make([]int, len(rings))
+		for id := range rings {
+			childRings[id] = id
+
+			ringNumberOfParents[id]++
+		}
+
+		ringsByParent[wholeMapRingIndex] = childRings
+		rings[wholeMapRingIndex] = wholeMapRing
+	}
+
+	maxNumOfParents := 0
+	// make sure rings are right winding order
+	for id, ring := range rings {
+		numOfParents := ringNumberOfParents[id]
+
+		maxNumOfParents = int(math.Max(float64(maxNumOfParents), float64(numOfParents)))
+
+		if numOfParents%2 == 1 {
+			ring.Reverse()
+		}
+	}
+
+	// create polygons
+	polys := make([]orb.Polygon, 0)
+	for level := maxNumOfParents - maxNumOfParents%2; level >= 0; level = level - 2 {
+		for ringID, ring := range rings {
+			if ringNumberOfParents[ringID] != level {
+				continue
+			}
+
+			poly := orb.Polygon{ring}
+			delete(rings, ringID)
+
+			// add all rings that are contained in current ring
+			holes := ringsByParent[ringID]
+			for _, id := range holes {
+				hole, found := rings[id]
+
+				if found {
+					poly = append(poly, hole)
+					delete(rings, id)
+				}
+			}
+
+			polys = append(polys, poly)
+		}
+	}
+
+	return polys
+}
+
+func ringContainsRing(parent *orb.Ring, child *orb.Ring) bool {
+	for _, point := range *child {
+		contains := planar.RingContains(*parent, point)
+
+		if !contains {
+			return false
+		}
+	}
+
+	return true
 }
