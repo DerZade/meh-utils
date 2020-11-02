@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"./mvt"
+	"./preview"
 	"./sat"
 )
 
@@ -21,6 +22,7 @@ func init() {
 	subCommands = []command{
 		command{"sat", "Build satellite tiles from grad_meh data.", sat.Run},
 		command{"mvt", "Build mapbox vector tiles from grad_meh data.", mvt.Run},
+		command{"preview", "Build resolutions for preview image.", preview.Run},
 		command{"help", "Print this message.", func(s *flag.FlagSet) { printUsage() }},
 	}
 }

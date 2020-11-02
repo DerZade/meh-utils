@@ -1,9 +1,10 @@
 package validate
 
 import (
-	"../utils"
 	"fmt"
 	"path"
+
+	"../utils"
 )
 
 // MehDirectory validates that given directory is valid grad_meh directory
@@ -15,6 +16,11 @@ func MehDirectory(mehDirPath string) error {
 	// check DEM
 	if !utils.IsFile(path.Join(mehDirPath, "dem.asc.gz")) {
 		return fmt.Errorf("%s is missing", path.Join(mehDirPath, "dem.asc.gz"))
+	}
+
+	// check preview.png
+	if !utils.IsFile(path.Join(mehDirPath, "preview.png")) {
+		return fmt.Errorf("%s is missing", path.Join(mehDirPath, "preview.png"))
 	}
 
 	// check meta.json
