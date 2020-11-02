@@ -21,13 +21,13 @@ import (
 func buildTileSet(lod uint8, combinedSatImage *image.RGBA, outputDirectory string) {
 	outputDirectory = path.Join(outputDirectory, fmt.Sprintf("%d", lod))
 
-	tilesPerRowCol := uint(math.Pow(2, float64(lod)))
+	tilesPerRowCol := int(math.Pow(2, float64(lod)))
 
 	// make col directories
 	wg := sync.WaitGroup{}
-	for col := uint(0); col < tilesPerRowCol; col++ {
+	for col := 0; col < tilesPerRowCol; col++ {
 		wg.Add(1)
-		go func(col uint) {
+		go func(col int) {
 			defer wg.Done()
 			dirPath := path.Join(outputDirectory, fmt.Sprintf("%d", col))
 			if !utils.IsDirectory(dirPath) {
@@ -40,18 +40,40 @@ func buildTileSet(lod uint8, combinedSatImage *image.RGBA, outputDirectory strin
 	}
 	wg.Wait()
 
-	resizedImg := resize.Resize(256*tilesPerRowCol, 256*tilesPerRowCol, combinedSatImage, resize.MitchellNetravali).(*image.RGBA)
+	width := (*combinedSatImage).Bounds().Dy()
+	height := (*combinedSatImage).Bounds().Dx()
+
+	tileWidth := width / tilesPerRowCol
+	tileHeight := height / tilesPerRowCol
+
+	// remaining pixels
+	widthRemainder := width % tilesPerRowCol
+	heightRemainder := height % tilesPerRowCol
 
 	wg2 := sync.WaitGroup{}
 
-	for col := uint(0); col < tilesPerRowCol; col++ {
-		for row := uint(0); row < tilesPerRowCol; row++ {
+	for col := 0; col < tilesPerRowCol; col++ {
+		for row := 0; row < tilesPerRowCol; row++ {
 			wg2.Add(1)
-			go func(col, row uint) {
+			go func(col int, row int) {
 				defer wg2.Done()
 				tilePath := path.Join(outputDirectory, fmt.Sprintf("%d", col), fmt.Sprintf("%d.png", row))
+				x := tileWidth * col
+				y := tileHeight * row
+				w := tileWidth
+				h := tileHeight
+				p := image.Point{x, y}
 
-				createTile(resizedImg, col, row, tilePath)
+				// if we have any remaining pixels we'll distrubute them to the first rows / cols
+				if widthRemainder > col+1 {
+					w++
+				}
+				if heightRemainder > row+1 {
+					h++
+				}
+
+				rect := image.Rectangle{p, p.Add(image.Point{w, h})}
+				createTile(combinedSatImage, rect, tilePath)
 			}(col, row)
 		}
 	}
@@ -59,25 +81,21 @@ func buildTileSet(lod uint8, combinedSatImage *image.RGBA, outputDirectory strin
 	wg2.Wait()
 }
 
-var sem = semaphore.NewWeighted(int64(runtime.NumCPU() * 2))
+var sem = semaphore.NewWeighted(int64(runtime.NumCPU()))
 
-func createTile(combinedSatImage *image.RGBA, col, row uint, tilePath string) {
+func createTile(combinedSatImage *image.RGBA, rect image.Rectangle, tilePath string) {
 	sem.Acquire(context.Background(), 1)
 
-	x := int(256 * col)
-	y := int(256 * row)
-	p := image.Point{x, y}
-
-	rect := image.Rectangle{p, p.Add(image.Point{256, 256})}
-
 	subImg := (*combinedSatImage).SubImage(rect)
+
+	img := resize.Resize(256, 256, subImg, resize.MitchellNetravali)
 
 	out, err := os.Create(tilePath)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	png.Encode(out, subImg)
+	png.Encode(out, img)
 
 	err = out.Close()
 	if err != nil {
