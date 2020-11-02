@@ -8,6 +8,7 @@ import (
 	"./mvt"
 	"./preview"
 	"./sat"
+	"./terrainrgb"
 )
 
 type command struct {
@@ -21,6 +22,7 @@ var subCommands []command
 func init() {
 	subCommands = []command{
 		command{"sat", "Build satellite tiles from grad_meh data.", sat.Run},
+		command{"terrainrgb", "Build Terrain-RGB tiles from grad_meh data.", terrainrgb.Run},
 		command{"mvt", "Build mapbox vector tiles from grad_meh data.", mvt.Run},
 		command{"preview", "Build resolutions for preview image.", preview.Run},
 		command{"help", "Print this message.", func(s *flag.FlagSet) { printUsage() }},

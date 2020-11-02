@@ -1,4 +1,4 @@
-package sat
+package utils
 
 import (
 	"context"
@@ -12,13 +12,12 @@ import (
 	"runtime"
 	"sync"
 
-	"../utils"
 	"github.com/nfnt/resize"
 	"golang.org/x/sync/semaphore"
 )
 
-// BuildTileSet builds tiles for given LOD from given combinedSatImage into outputDirectory
-func buildTileSet(lod uint8, combinedSatImage *image.RGBA, outputDirectory string) {
+// BuildTileSet builds tiles for given LOD from given image into outputDirectory
+func BuildTileSet(lod uint8, combinedSatImage *image.RGBA, outputDirectory string) {
 	outputDirectory = path.Join(outputDirectory, fmt.Sprintf("%d", lod))
 
 	tilesPerRowCol := int(math.Pow(2, float64(lod)))
@@ -30,7 +29,7 @@ func buildTileSet(lod uint8, combinedSatImage *image.RGBA, outputDirectory strin
 		go func(col int) {
 			defer wg.Done()
 			dirPath := path.Join(outputDirectory, fmt.Sprintf("%d", col))
-			if !utils.IsDirectory(dirPath) {
+			if !IsDirectory(dirPath) {
 				err := os.MkdirAll(dirPath, os.ModePerm)
 				if err != nil {
 					log.Fatal(err)
