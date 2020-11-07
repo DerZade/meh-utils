@@ -4,8 +4,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"image"
-	"image/png"
 	"log"
 	"os"
 	"path"
