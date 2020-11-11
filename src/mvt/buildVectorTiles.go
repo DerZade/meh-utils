@@ -65,9 +65,6 @@ func buildLODVectorTiles(lod uint16, lodDir string, collectionsPtr *map[string]*
 		l.Version = 2
 	}
 
-	layers.Simplify(simplify.DouglasPeucker(1.0))
-	layers.RemoveEmpty(1.0, 1.0)
-
 	colWaitGrp := sync.WaitGroup{}
 
 	sem := semaphore.NewWeighted(int64(runtime.NumCPU()))
@@ -168,7 +165,8 @@ func createTile(x uint32, y uint32, layers mvt.Layers) ([]byte, error) {
 	})
 
 	lClone.Clip(mvt.MapboxGLDefaultExtentBound)
-	lClone.RemoveEmpty(0, 0)
+	lClone.Simplify(simplify.DouglasPeucker(1.0))
+	lClone.RemoveEmpty(10.0, 20.0)
 
 	data, err := mvt.MarshalGzipped(lClone)
 	if err != nil {
