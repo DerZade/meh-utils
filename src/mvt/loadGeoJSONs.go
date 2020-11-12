@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/paulmach/orb"
 	geojson "github.com/paulmach/orb/geojson"
 )
 
@@ -47,6 +48,21 @@ func loadGeoJSONs(inputPath string, layers *map[string]*geojson.FeatureCollectio
 					color := feature.Properties["color"].([]interface{})
 
 					feature.Properties["color"] = fmt.Sprintf("rgb(%.0f, %.0f, %.0f)", color[0], color[1], color[2])
+
+					// normalize rings
+					for _, ring := range feature.Geometry.(orb.Polygon) {
+						// make sure the ring is winding order = clockwise
+						// https://stackoverflow.com/a/1165943
+						sum := float64(0)
+						for i := 1; i < len(ring); i++ {
+							p1 := ring[i-1]
+							p2 := ring[i]
+							sum += (p2[0] - p1[0]) * (p2[1] + p1[1])
+						}
+						if sum < 0 {
+							ring.Reverse()
+						}
+					}
 				}
 			}
 
