@@ -100,27 +100,27 @@ func parseHeaderLine(fields []string, grid *EsriASCIIRaster) error {
 		if err != nil {
 			return err
 		}
-		(*grid).Xcenter = f
+		(*grid).Xcenter = &f
 	case "XLLCORNER":
 		f, err := strconv.ParseFloat(fields[1], 64)
 		if err != nil {
 			return err
 		}
-		(*grid).Xcorner = f
+		(*grid).Xcorner = &f
 
 	case "YLLCENTER":
 		f, err := strconv.ParseFloat(fields[1], 64)
 		if err != nil {
 			return err
 		}
-		(*grid).Ycenter = f
+		(*grid).Ycenter = &f
 
 	case "YLLCORNER":
 		f, err := strconv.ParseFloat(fields[1], 64)
 		if err != nil {
 			return err
 		}
-		(*grid).Ycorner = f
+		(*grid).Ycorner = &f
 
 	case "CELLSIZE":
 		f, err := strconv.ParseFloat(fields[1], 64)

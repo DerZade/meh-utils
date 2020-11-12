@@ -20,7 +20,6 @@ type tileJSON struct {
 
 var contourFields = map[string]string{"elevation": "Elevation of contour."}
 
-// TODO:
 var locationFields = map[string]string{
 	"name":    "Corresponds to value in map config.",
 	"radiusA": "Corresponds to value in map config.",

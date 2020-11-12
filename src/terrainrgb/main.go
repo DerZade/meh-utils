@@ -50,7 +50,6 @@ func Run(flagSet *flag.FlagSet) {
 	dem := loadDEM(path.Join(*inputPtr, "dem.asc.gz"))
 	fmt.Println("✔️  Loaded DEM in", time.Now().Sub(timer).String())
 
-	// TODO: Make image
 	timer = time.Now()
 	fmt.Println("▶️  Calculating image from DEM")
 	img := calculateImage(dem)
