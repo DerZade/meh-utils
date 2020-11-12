@@ -1,9 +1,6 @@
 package mvt
 
 import (
-	"compress/gzip"
-	"log"
-	"os"
 	"sync"
 
 	"github.com/paulmach/orb"
@@ -13,31 +10,7 @@ import (
 	dem "../dem"
 )
 
-func buildContours(demPath string, elevOffset float64, worldSize float64, layers *map[string]*geojson.FeatureCollection) {
-	file, err := os.Open(demPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	gz, err := gzip.NewReader(file)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	raster, err := dem.ParseEsriASCIIRaster(gz)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = file.Close()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = gz.Close()
-	if err != nil {
-		log.Fatal(err)
-	}
+func buildContours(raster *dem.EsriASCIIRaster, elevOffset float64, worldSize float64, layers *map[string]*geojson.FeatureCollection) {
 
 	// find max / min elevation in DEM
 	maxElevation := float64(0)
@@ -71,7 +44,7 @@ func buildContours(demPath string, elevOffset float64, worldSize float64, layers
 		go func(elev int) {
 			defer waitGrp.Done()
 
-			lines := dem.MarchingSquares(&raster, float64(elev))
+			lines := dem.MarchingSquares(raster, float64(elev))
 
 			// add lines to correct feature collection
 			for _, line := range lines {
@@ -109,7 +82,7 @@ func buildContours(demPath string, elevOffset float64, worldSize float64, layers
 
 	// build water
 	if len(waterLines) > 0 {
-		(*layers)["water"] = buildWater(waterLines, worldSize, &raster)
+		(*layers)["water"] = buildWater(waterLines, worldSize, raster)
 	}
 
 }

@@ -69,11 +69,23 @@ func Run(flagSet *flag.FlagSet) {
 	layerSettings := loadLayerSettings(*layerSettingsPtr)
 	fmt.Println("✔️  Loaded layerSettings.json in", time.Now().Sub(timer).String())
 
+	// load DEM
+	timer = time.Now()
+	fmt.Println("▶️  Loading DEM")
+	raster := loadDEM(path.Join(*inputPtr, "dem.asc.gz"))
+	fmt.Println("✔️  Loaded DEM in", time.Now().Sub(timer).String())
+
 	// contour lines
 	timer = time.Now()
 	fmt.Println("▶️  Building contour lines")
-	buildContours(path.Join(*inputPtr, "dem.asc.gz"), meta.ElevationOffset, meta.WorldSize, &collections)
+	buildContours(&raster, meta.ElevationOffset, meta.WorldSize, &collections)
 	fmt.Println("✔️  Built contour lines in", time.Now().Sub(timer).String())
+
+	// build mounts
+	timer = time.Now()
+	fmt.Println("▶️  Building mounts")
+	buildMounts(&raster, meta.ElevationOffset, &collections)
+	fmt.Println("✔️  Built mounts in", time.Now().Sub(timer).String())
 
 	// loading GeoJSONSs
 	timer = time.Now()

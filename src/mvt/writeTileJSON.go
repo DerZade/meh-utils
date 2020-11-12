@@ -35,6 +35,7 @@ var fields = map[string]map[string]string{
 	"contours/100":                  contourFields,
 	"contours/50":                   contourFields,
 	"house":                         {"color": "House color as a CSS rgb() string."},
+	"mount":                         {"elevation": "Elevation as float", "text": "Rounded elevation as a string"},
 	"locations/respawn_unknown":     locationFields,
 	"locations/respawn_inf":         locationFields,
 	"locations/respawn_motor":       locationFields,
