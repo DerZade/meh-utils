@@ -11,6 +11,8 @@ import (
 
 	"../utils"
 	"../validate"
+
+	"../metajson"
 )
 
 var sizes = []uint{128, 256, 512, 1024}
@@ -45,6 +47,15 @@ func Run(flagSet *flag.FlagSet) {
 
 	fmt.Println("✔️  Validated input directory structure")
 
+	// load meta.json
+	timer = time.Now()
+	fmt.Println("▶️  Loading meta.json")
+	meta, err := metajson.Read(path.Join(*inputPtr, "meta.json"))
+	if err != nil {
+		log.Fatal(errors.New("Failed to read meta.json"))
+	}
+	fmt.Println("✔️  Loaded meta.json in", time.Now().Sub(timer).String())
+
 	timer = time.Now()
 	fmt.Println("▶️  Loading DEM")
 	dem := loadDEM(path.Join(*inputPtr, "dem.asc.gz"))
@@ -52,7 +63,7 @@ func Run(flagSet *flag.FlagSet) {
 
 	timer = time.Now()
 	fmt.Println("▶️  Calculating image from DEM")
-	img := calculateImage(dem)
+	img := calculateImage(dem, meta.ElevationOffset)
 	fmt.Println("✔️  Calculated image in", time.Now().Sub(timer).String())
 
 	maxLod := utils.CalcMaxLodFromImage(img)

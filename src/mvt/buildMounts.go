@@ -61,8 +61,8 @@ func buildMounts(raster *dem.EsriASCIIRaster, elevOffset float64, layers *map[st
 			// add mount if all neighbours are lower (= this is a peak)
 			if hasLowerNeighbours && !hasHigherNeighbours {
 				feature := geojson.NewFeature(orb.Point{raster.X(col), raster.Y(row)})
-				feature.Properties["elevation"] = elevation
-				feature.Properties["text"] = fmt.Sprintf("%.0f", math.Round(elevation))
+				feature.Properties["elevation"] = elevation + elevOffset
+				feature.Properties["text"] = fmt.Sprintf("%.0f", math.Round(elevation+elevOffset))
 
 				mounts.Append(feature)
 			}

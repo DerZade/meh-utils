@@ -49,19 +49,18 @@ func buildContours(raster *dem.EsriASCIIRaster, elevOffset float64, worldSize fl
 			// add lines to correct feature collection
 			for _, line := range lines {
 				f := geojson.NewFeature(line)
-				h := int(elev)
-				f.Properties["elevation"] = h
+				f.Properties["elevation"] = float64(elev) + elevOffset
 				contours01.Append(f)
-				if h%5 == 0 {
+				if elev%5 == 0 {
 					contours05.Append(f)
 				}
-				if h%10 == 0 {
+				if elev%10 == 0 {
 					contours10.Append(f)
 				}
-				if h%50 == 0 {
+				if elev%50 == 0 {
 					contours50.Append(f)
 				}
-				if h%100 == 0 {
+				if elev%100 == 0 {
 					contours100.Append(f)
 				}
 			}

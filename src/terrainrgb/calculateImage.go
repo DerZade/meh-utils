@@ -6,7 +6,7 @@ import (
 	dem "../dem"
 )
 
-func calculateImage(dem dem.EsriASCIIRaster) *image.RGBA {
+func calculateImage(dem dem.EsriASCIIRaster, elevationOffset float64) *image.RGBA {
 
 	w, h := dem.Dims()
 
@@ -14,7 +14,7 @@ func calculateImage(dem dem.EsriASCIIRaster) *image.RGBA {
 
 	for col := uint(0); col < w; col++ {
 		for row := uint(0); row < h; row++ {
-			color := HeightToRgb(dem.Z(col, row))
+			color := HeightToRgb(dem.Z(col, row) + elevationOffset)
 
 			img.SetRGBA(int(col), int(row), color)
 		}
