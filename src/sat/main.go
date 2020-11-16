@@ -56,15 +56,17 @@ func Run(flagSet *flag.FlagSet) {
 	}
 	fmt.Println("✔️  Loaded meta.json in", time.Now().Sub(timer).String())
 
+	// combine sat image
 	timer = time.Now()
 	fmt.Println("▶️  Combining satellite image")
 	combinedImg := combineSatImage(inputDir)
 	fmt.Println("✔️  Combined satellite image in", time.Now().Sub(timer).String())
 
+	// combine max LOD
 	maxLod := utils.CalcMaxLodFromImage(combinedImg)
-
 	fmt.Println("ℹ️  Calculated max lod:", maxLod)
 
+	// build tiles
 	timer = time.Now()
 	fmt.Println("▶️  Building tiles")
 	for lod := uint8(0); lod <= maxLod; lod++ {
@@ -74,6 +76,7 @@ func Run(flagSet *flag.FlagSet) {
 	}
 	fmt.Println("✔️  Built sat tiles in", time.Now().Sub(timer).String())
 
+	// write tile.json
 	timer = time.Now()
 	fmt.Println("▶️  Creating tile.json")
 	tilejson.Write(*outputPtr, maxLod, meta, "Satellite", []string{})

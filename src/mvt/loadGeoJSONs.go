@@ -14,9 +14,8 @@ import (
 	geojson "github.com/paulmach/orb/geojson"
 )
 
-var layersMux = sync.Mutex{}
-
 func loadGeoJSONs(inputPath string, layers *map[string]*geojson.FeatureCollection) {
+	var layersMux = sync.Mutex{}
 	filePaths := []string{}
 
 	pattern, _ := regexp.Compile("\\.geojson\\.gz$")
@@ -34,11 +33,12 @@ func loadGeoJSONs(inputPath string, layers *map[string]*geojson.FeatureCollectio
 
 	waitGrp := sync.WaitGroup{}
 
-	for i := 0; i < len(filePaths); i++ {
-		layerName := pathToLayerName(filePaths[i], inputPath)
+	for _, layerPath := range filePaths {
 		waitGrp.Add(1)
 		go func(path string) {
 			defer waitGrp.Done()
+
+			layerName := pathToLayerName(path, inputPath)
 			fc := readGzippedGeoJSON(path)
 
 			// we want to have the color of the houses as a rgba-string not as an array [r,g,b] with r, g and b beeing numbers from 0 to 255
@@ -54,7 +54,7 @@ func loadGeoJSONs(inputPath string, layers *map[string]*geojson.FeatureCollectio
 			(*layers)[layerName] = fc
 			layersMux.Unlock()
 
-		}(filePaths[i])
+		}(layerPath)
 	}
 
 	waitGrp.Wait()
@@ -85,11 +85,10 @@ func readGzippedGeoJSON(geoJSONPath string) *geojson.FeatureCollection {
 
 	json.NewDecoder(gz).Decode(&features)
 
-	var pointers []*geojson.Feature
+	pointers := make([]*geojson.Feature, len(features))
 
 	for i := 0; i < len(features); i++ {
-		pointers = append(pointers, &features[i])
-
+		pointers[i] = &features[i]
 	}
 
 	return &geojson.FeatureCollection{Features: pointers}

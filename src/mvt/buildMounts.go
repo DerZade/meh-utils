@@ -18,7 +18,7 @@ func buildMounts(raster *dem.EsriASCIIRaster, elevOffset float64, layers *map[st
 		for col := uint(1); col < raster.Ncols-1; col++ {
 			elevation := raster.Data[row][col]
 
-			// we'll only create mounts for peaks / valleys which are above the water level
+			// we'll only create mounts for peaks, which are above the water level
 			if elevation <= 0 {
 				continue
 			}

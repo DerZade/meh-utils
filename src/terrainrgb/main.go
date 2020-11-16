@@ -57,19 +57,23 @@ func Run(flagSet *flag.FlagSet) {
 	}
 	fmt.Println("✔️  Loaded meta.json in", time.Now().Sub(timer).String())
 
+	// load DEM
 	timer = time.Now()
 	fmt.Println("▶️  Loading DEM")
 	dem := dem.Read(path.Join(*inputPtr, "dem.asc.gz"))
 	fmt.Println("✔️  Loaded DEM in", time.Now().Sub(timer).String())
 
+	// calculating image
 	timer = time.Now()
 	fmt.Println("▶️  Calculating image from DEM")
 	img := calculateImage(dem, meta.ElevationOffset)
 	fmt.Println("✔️  Calculated image in", time.Now().Sub(timer).String())
 
+	// calculate max LOD
 	maxLod := utils.CalcMaxLodFromImage(img)
 	fmt.Println("ℹ️  Calculated max lod:", maxLod)
 
+	// build tiles
 	timer = time.Now()
 	fmt.Println("▶️  Building tiles")
 	for lod := uint8(0); lod <= maxLod; lod++ {
@@ -79,6 +83,7 @@ func Run(flagSet *flag.FlagSet) {
 	}
 	fmt.Println("✔️  Built Terrain-RGB tiles in", time.Now().Sub(timer).String())
 
+	// write tile.json
 	timer = time.Now()
 	fmt.Println("▶️  Creating tile.json")
 	tilejson.Write(*outputPtr, maxLod, meta, "Mapbox Terrain-RGB", []string{})

@@ -10,15 +10,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/paulmach/orb"
 	"golang.org/x/sync/semaphore"
 
+	"github.com/paulmach/orb"
+	"github.com/paulmach/orb/encoding/mvt"
+	"github.com/paulmach/orb/geojson"
 	"github.com/paulmach/orb/project"
 	"github.com/paulmach/orb/simplify"
 
 	"../utils"
-	"github.com/paulmach/orb/encoding/mvt"
-	"github.com/paulmach/orb/geojson"
 )
 
 const tileSize = mvt.DefaultExtent
