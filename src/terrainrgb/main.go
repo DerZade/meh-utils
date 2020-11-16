@@ -13,6 +13,7 @@ import (
 	"../validate"
 
 	"../metajson"
+	"../tilejson"
 )
 
 var sizes = []uint{128, 256, 512, 1024}
@@ -80,7 +81,7 @@ func Run(flagSet *flag.FlagSet) {
 
 	timer = time.Now()
 	fmt.Println("▶️  Creating tile.json")
-	writeTileJSON(*outputPtr, maxLod)
+	tilejson.Write(*outputPtr, maxLod, meta, "Mapbox Terrain-RGB", []string{})
 	fmt.Println("✔️  Created tile.json in", time.Now().Sub(timer).String())
 
 	fmt.Printf("\n    🎉  Finished in %s\n", time.Now().Sub(start).String())

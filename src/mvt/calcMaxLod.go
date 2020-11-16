@@ -1,7 +1,7 @@
 package mvt
 
 // CalcMaxLod calculates maximum LOD based on the size of the map
-func calcMaxLod(worldSize float64) uint16 {
+func calcMaxLod(worldSize float64) uint8 {
 	// TODO: calcualte
-	return uint16(5)
+	return uint8(5)
 }

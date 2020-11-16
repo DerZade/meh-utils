@@ -13,6 +13,7 @@ import (
 
 	"../metajson"
 
+	"../tilejson"
 	"../utils"
 	"../validate"
 	geojson "github.com/paulmach/orb/geojson"
@@ -114,7 +115,7 @@ func Run(flagSet *flag.FlagSet) {
 	// write tile.json
 	timer = time.Now()
 	fmt.Println("▶️  Creating tile.json")
-	writeTileJSON(*outputPtr, maxLod, layerNames)
+	tilejson.Write(*outputPtr, maxLod, meta, "Mapbox Vector", layerNames)
 	fmt.Println("✔️  Created tile.json in", time.Now().Sub(timer).String())
 
 	fmt.Printf("\n    🎉  Finished in %s\n", time.Now().Sub(start).String())

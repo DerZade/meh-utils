@@ -9,6 +9,8 @@ import (
 	"path"
 	"time"
 
+	"../metajson"
+	"../tilejson"
 	"../utils"
 	"../validate"
 )
@@ -45,6 +47,15 @@ func Run(flagSet *flag.FlagSet) {
 
 	fmt.Println("✔️  Validated input directory structure")
 
+	// load meta.json
+	timer = time.Now()
+	fmt.Println("▶️  Loading meta.json")
+	meta, err := metajson.Read(path.Join(*inputPtr, "meta.json"))
+	if err != nil {
+		log.Fatal(errors.New("Failed to read meta.json"))
+	}
+	fmt.Println("✔️  Loaded meta.json in", time.Now().Sub(timer).String())
+
 	timer = time.Now()
 	fmt.Println("▶️  Combining satellite image")
 	combinedImg := combineSatImage(inputDir)
@@ -65,7 +76,7 @@ func Run(flagSet *flag.FlagSet) {
 
 	timer = time.Now()
 	fmt.Println("▶️  Creating tile.json")
-	writeTileJSON(*outputPtr, maxLod)
+	tilejson.Write(*outputPtr, maxLod, meta, "Satellite", []string{})
 	fmt.Println("✔️  Created tile.json in", time.Now().Sub(timer).String())
 
 	fmt.Printf("\n    🎉  Finished in %s\n", time.Now().Sub(start).String())

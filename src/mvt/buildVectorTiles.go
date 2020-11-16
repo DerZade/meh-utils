@@ -23,9 +23,9 @@ import (
 
 const tileSize = mvt.DefaultExtent
 
-func buildVectorTiles(outputPath string, collectionsPtr *map[string]*geojson.FeatureCollection, maxLod uint16, worldSize float64, layerSettings *[]layerSetting) {
+func buildVectorTiles(outputPath string, collectionsPtr *map[string]*geojson.FeatureCollection, maxLod uint8, worldSize float64, layerSettings *[]layerSetting) {
 
-	for lod := uint16(0); lod <= maxLod; lod++ {
+	for lod := uint8(0); lod <= maxLod; lod++ {
 		lodPath := path.Join(outputPath, fmt.Sprintf("%d", lod))
 		start := time.Now()
 
@@ -44,7 +44,7 @@ func buildVectorTiles(outputPath string, collectionsPtr *map[string]*geojson.Fea
 	}
 }
 
-func buildLODVectorTiles(lod uint16, lodDir string, collectionsPtr *map[string]*geojson.FeatureCollection, worldSize float64, layerSettings *[]layerSetting) {
+func buildLODVectorTiles(lod uint8, lodDir string, collectionsPtr *map[string]*geojson.FeatureCollection, worldSize float64, layerSettings *[]layerSetting) {
 	// how many tiles one row / col has
 	tilesPerRowCol := uint32(math.Pow(2, float64(lod)))
 
