@@ -68,68 +68,95 @@ func calcLinesForColRow(raster *EsriASCIIRaster, col uint, row uint, height floa
 	// find MS "case"
 	index := uint(0)
 	if tlHeight > height {
-		index = index | 8
+		index |= 8
 	}
 	if trHeight > height {
-		index = index | 4
+		index |= 4
 	}
 	if brHeight > height {
-		index = index | 2
+		index |= 2
 	}
 	if blHeight > height {
-		index = index | 1
-	}
-
-	topEdgePoint := func() orb.Point {
-		return orb.Point{interpolate(leftX, tlHeight, rightX, trHeight, height), topY}
-	}
-	leftEdgePoint := func() orb.Point {
-		return orb.Point{leftX, interpolate(bottomY, blHeight, topY, tlHeight, height)}
-	}
-	bottomEdgePoint := func() orb.Point {
-		return orb.Point{interpolate(leftX, blHeight, rightX, brHeight, height), bottomY}
-	}
-	rightEdgePoint := func() orb.Point {
-		return orb.Point{rightX, interpolate(bottomY, brHeight, topY, trHeight, height)}
+		index |= 1
 	}
 
 	switch index {
 	case 0:
 		return []orb.LineString{}
 	case 1, 14:
-		// one line from bottom to left edge
-		l1 := orb.LineString{bottomEdgePoint(), leftEdgePoint()}
-		return []orb.LineString{l1}
+		return []orb.LineString{
+			// one line from bottom to left edge
+			orb.LineString{
+				orb.Point{interpolate(leftX, blHeight, rightX, brHeight, height), bottomY}, // BOTTOM EDGE
+				orb.Point{leftX, interpolate(bottomY, blHeight, topY, tlHeight, height)},   // LEFT EDGE
+			},
+		}
 	case 2, 13:
-		// one line from right to bottom edge
-		l1 := orb.LineString{rightEdgePoint(), bottomEdgePoint()}
-		return []orb.LineString{l1}
+		return []orb.LineString{
+			// one line from right to bottom edge
+			orb.LineString{
+				orb.Point{rightX, interpolate(bottomY, brHeight, topY, trHeight, height)},  // RIGHT EDGE
+				orb.Point{interpolate(leftX, blHeight, rightX, brHeight, height), bottomY}, // BOTTOM EDGE
+			},
+		}
 	case 3, 12:
-		// one line from right to left edge
-		l1 := orb.LineString{rightEdgePoint(), leftEdgePoint()}
-		return []orb.LineString{l1}
+		return []orb.LineString{
+			// one line from right to left edge
+			orb.LineString{
+				orb.Point{rightX, interpolate(bottomY, brHeight, topY, trHeight, height)}, // RIGHT EDGE
+				orb.Point{leftX, interpolate(bottomY, blHeight, topY, tlHeight, height)},  // LEFT EDGE
+			},
+		}
 	case 4, 11:
-		// one line from top to right edge
-		l1 := orb.LineString{topEdgePoint(), rightEdgePoint()}
-		return []orb.LineString{l1}
+		return []orb.LineString{
+			// one line from top to right edge
+			orb.LineString{
+				orb.Point{interpolate(leftX, tlHeight, rightX, trHeight, height), topY},   // TOP EDGE
+				orb.Point{rightX, interpolate(bottomY, brHeight, topY, trHeight, height)}, // RIGHT EDGE
+			},
+		}
 	case 5:
-		// one line from left to top edge and one line from bottom to right edge
-		l1 := orb.LineString{leftEdgePoint(), topEdgePoint()}
-		l2 := orb.LineString{bottomEdgePoint(), rightEdgePoint()}
-		return []orb.LineString{l1, l2}
+		return []orb.LineString{
+			// one line from left to top edge
+			orb.LineString{
+				orb.Point{leftX, interpolate(bottomY, blHeight, topY, tlHeight, height)}, // LEFT EDGE
+				orb.Point{interpolate(leftX, tlHeight, rightX, trHeight, height), topY},  // TOP EDGE
+			},
+			// one line from bottom to right edge
+			orb.LineString{
+				orb.Point{interpolate(leftX, blHeight, rightX, brHeight, height), bottomY}, // BOTTOM EDGE
+				orb.Point{rightX, interpolate(bottomY, brHeight, topY, trHeight, height)},  // RIGHT EDGE
+			},
+		}
 	case 6, 9:
-		// one line from top to bottom edge
-		l1 := orb.LineString{topEdgePoint(), bottomEdgePoint()}
-		return []orb.LineString{l1}
+		return []orb.LineString{
+			// one line from top to bottom edge
+			orb.LineString{
+				orb.Point{interpolate(leftX, tlHeight, rightX, trHeight, height), topY},    // TOP EDGE
+				orb.Point{interpolate(leftX, blHeight, rightX, brHeight, height), bottomY}, // BOTTOM EDGE
+			},
+		}
 	case 7, 8:
-		// one line from left to top edge
-		l1 := orb.LineString{leftEdgePoint(), topEdgePoint()}
-		return []orb.LineString{l1}
+		return []orb.LineString{
+			// one line from left to top edge
+			orb.LineString{
+				orb.Point{leftX, interpolate(bottomY, blHeight, topY, tlHeight, height)}, // LEFT EDGE
+				orb.Point{interpolate(leftX, tlHeight, rightX, trHeight, height), topY},  // TOP EDGE
+			},
+		}
 	case 10:
-		// one line from left to bottom edge and one line from top to right edge
-		l1 := orb.LineString{leftEdgePoint(), bottomEdgePoint()}
-		l2 := orb.LineString{topEdgePoint(), rightEdgePoint()}
-		return []orb.LineString{l1, l2}
+		return []orb.LineString{
+			// one line from left to bottom edge
+			orb.LineString{
+				orb.Point{leftX, interpolate(bottomY, blHeight, topY, tlHeight, height)},   // LEFT EDGE
+				orb.Point{interpolate(leftX, blHeight, rightX, brHeight, height), bottomY}, // BOTTOM EDGE
+			},
+			// one line from top to right edge
+			orb.LineString{
+				orb.Point{interpolate(leftX, tlHeight, rightX, trHeight, height), topY},   // TOP EDGE
+				orb.Point{rightX, interpolate(bottomY, brHeight, topY, trHeight, height)}, // RIGHT EDGE
+			},
+		}
 	case 15:
 		// no lines
 		return []orb.LineString{}
@@ -138,6 +165,7 @@ func calcLinesForColRow(raster *EsriASCIIRaster, col uint, row uint, height floa
 	return []orb.LineString{}
 }
 
+// linear interpolations between two known points
 func interpolate(c0, h0, c1, h1, height float64) float64 {
 	return (c0*(h1-height) + c1*(height-h0)) / (h1 - h0)
 }
