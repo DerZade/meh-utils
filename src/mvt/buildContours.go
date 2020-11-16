@@ -1,11 +1,14 @@
 package mvt
 
 import (
+	"context"
+	"runtime"
 	"sync"
 
 	"github.com/paulmach/orb"
 	"github.com/paulmach/orb/geojson"
 	"github.com/paulmach/orb/planar"
+	"golang.org/x/sync/semaphore"
 
 	dem "../dem"
 )
@@ -38,14 +41,18 @@ func buildContours(raster *dem.EsriASCIIRaster, elevOffset float64, worldSize fl
 	contours100 := geojson.NewFeatureCollection()
 
 	waterLines := []orb.LineString{}
+	sem := semaphore.NewWeighted(int64(runtime.NumCPU()))
+	var layersMux = sync.Mutex{}
 
 	for elevation := int(minElevation - 1); elevation < int(maxElevation+1); elevation++ {
 		waitGrp.Add(1)
+		sem.Acquire(context.Background(), 1)
 		go func(elev int) {
 			defer waitGrp.Done()
 
 			lines := dem.MarchingSquares(raster, float64(elev))
 
+			layersMux.Lock()
 			// add lines to correct feature collection
 			for _, line := range lines {
 				f := geojson.NewFeature(line)
@@ -68,6 +75,8 @@ func buildContours(raster *dem.EsriASCIIRaster, elevOffset float64, worldSize fl
 			if elev == 0 {
 				waterLines = lines
 			}
+			layersMux.Unlock()
+			sem.Release(1)
 		}(elevation)
 	}
 
