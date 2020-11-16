@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"../dem"
 	"../metajson"
-
 	"../tilejson"
 	"../utils"
 	"../validate"
@@ -73,7 +73,7 @@ func Run(flagSet *flag.FlagSet) {
 	// load DEM
 	timer = time.Now()
 	fmt.Println("▶️  Loading DEM")
-	raster := loadDEM(path.Join(*inputPtr, "dem.asc.gz"))
+	raster := dem.Read(path.Join(*inputPtr, "dem.asc.gz"))
 	fmt.Println("✔️  Loaded DEM in", time.Now().Sub(timer).String())
 
 	// contour lines

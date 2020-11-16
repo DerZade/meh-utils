@@ -1,14 +1,13 @@
-package terrainrgb
+package dem
 
 import (
 	"compress/gzip"
 	"log"
 	"os"
-
-	dem "../dem"
 )
 
-func loadDEM(path string) dem.EsriASCIIRaster {
+// Read digital elevation model from given path
+func Read(path string) EsriASCIIRaster {
 	file, err := os.Open(path)
 	if err != nil {
 		log.Fatal(err)
@@ -19,7 +18,7 @@ func loadDEM(path string) dem.EsriASCIIRaster {
 		log.Fatal(err)
 	}
 
-	raster, err := dem.ParseEsriASCIIRaster(gz)
+	raster, err := ParseEsriASCIIRaster(gz)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -9,11 +9,11 @@ import (
 	"path"
 	"time"
 
-	"../utils"
-	"../validate"
-
+	"../dem"
 	"../metajson"
 	"../tilejson"
+	"../utils"
+	"../validate"
 )
 
 var sizes = []uint{128, 256, 512, 1024}
@@ -59,7 +59,7 @@ func Run(flagSet *flag.FlagSet) {
 
 	timer = time.Now()
 	fmt.Println("▶️  Loading DEM")
-	dem := loadDEM(path.Join(*inputPtr, "dem.asc.gz"))
+	dem := dem.Read(path.Join(*inputPtr, "dem.asc.gz"))
 	fmt.Println("✔️  Loaded DEM in", time.Now().Sub(timer).String())
 
 	timer = time.Now()
