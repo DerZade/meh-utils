@@ -1,6 +1,6 @@
 package tilejson
 
-var contourLayerFields = map[string]string{"elevation": "Elevation of contour."}
+var contourLayerFields = map[string]string{"elevation": "Corrected elevation of contour. (Includes elevationOffset)", "dem_elevation": "DEM elevation of contour."}
 
 var locationLayerFields = map[string]string{
 	"name":    "Corresponds to value in map config.",

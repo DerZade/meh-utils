@@ -57,6 +57,7 @@ func buildContours(raster *dem.EsriASCIIRaster, elevOffset float64, worldSize fl
 			for _, line := range lines {
 				f := geojson.NewFeature(line)
 				f.Properties["elevation"] = float64(elev) + elevOffset
+				f.Properties["dem_elevation"] = float64(elev)
 				contours01.Append(f)
 				if elev%5 == 0 {
 					contours05.Append(f)
