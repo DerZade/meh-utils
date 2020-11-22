@@ -6,50 +6,93 @@ import (
 	"github.com/paulmach/orb"
 )
 
-type contourLineBit struct {
+type contourLineBit_ struct {
 	Start     orb.Point
 	End       orb.Point
-	StartEdge cellEdge
-	EndEdge   cellEdge
+	StartEdge cellEdge_
+	EndEdge   cellEdge_
 }
 
-type cellEdge = uint8
+type cellEdge_ = uint8
+
+type cell_ struct {
+	Col uint
+	Row uint
+}
 
 const (
-	topIndex    cellEdge = 0b0001
-	leftIndex   cellEdge = 0b0010
-	bottomIndex cellEdge = 0b0100
-	rightIndex  cellEdge = 0b1000
+	topEdgeIndex    cellEdge_ = 0b0001
+	leftEdgeIndex   cellEdge_ = 0b0010
+	bottomEdgeIndex cellEdge_ = 0b0100
+	rightEdgeIndex  cellEdge_ = 0b1000
 )
 
-func cellIndex(raster *EsriASCIIRaster, col, row uint) uint {
-	return row*raster.Nrows + col
+// cellIndex returns the index of a cell
+func cellIndex(raster *EsriASCIIRaster, cell cell_) uint {
+	return cell.Row*(raster.Nrows-1) + cell.Col
 }
 
-// MarchingSquares calculates the contour lines for given raster and height and adds those to the given array
+// MarchingSquares calculates the contour lines for given raster and height
 func MarchingSquares(raster *EsriASCIIRaster, height float64) []orb.LineString {
 	finishedLines := []orb.LineString{}
 
-	visitedCells := make([]cellEdge, raster.Nrows*raster.Ncols)
+	// each cell is represented by a CellEdge (uint8). The first four bits of each CellEdge
+	// indicate which edges are already accounted for:
+	// 0bXXXX
+	//   │││└─ top
+	//   ││└─ left
+	//   │└─ bottom
+	//   └─ right
+	//
+	// 0b1111 indicates that the cell is done (there are no pending countour line bits)
+	//
+	// i.e. we have a cell with two contour line bits. One from top to left and one from bottom
+	// to right. If we've already calculated a contour line, which includes the bit from top to
+	// left, but no line included the bit from bottom to right the value would be 0b0011
+	visitedCells := make([]cellEdge_, (raster.Nrows-1)*(raster.Ncols-1))
 
 	for col := uint(0); col < raster.Ncols-1; col++ {
 		for row := uint(0); row < raster.Nrows-1; row++ {
-			index := cellIndex(raster, col, row)
+			cell := cell_{col, row}
+			index := cellIndex(raster, cell)
 			visited := visitedCells[index]
 
+			// check if all lines in this cell are done
 			if visited == 0b1111 {
 				continue
 			}
 
-			bits := calcBitsForColRow(raster, col, row, height)
+			bits := calcBitsForColRow(raster, cell, height)
 
 			for _, bit := range bits {
+				// check if bit is already included in a finished line
 				if bit.StartEdge & visited > 0 {
 					continue
 				}
-				finishedLines = append(finishedLines, calculateLine(raster, col, row, height, bit, &visitedCells))
+
+				// make new ring containing the bit
+				line := orb.LineString{bit.Start, bit.End}
+
+				// calculate line in one direction
+				nextCell, nextEdge, err := neighbourCell(raster, cell, bit.EndEdge)
+				if err == nil {
+					line = append(line, followLine(raster, height, nextEdge, nextCell, cell, &visitedCells)...)
+				}
+			
+				// follow the line in the other direction if the line is not already closed (we made an ring)
+				if line[0] != line[len(line)-1] {
+					nextCell, nextEdge, err = neighbourCell(raster, cell, bit.StartEdge)
+					if err == nil {
+						endDirPoints := orb.LineString(followLine(raster, height, nextEdge, nextCell, cell, &visitedCells))
+						endDirPoints.Reverse()
+						line = append(endDirPoints, line...)
+					}
+				}
+
+				finishedLines = append(finishedLines, line)
 			}
 
+			// mark cell as done
 			visitedCells[index] = 0b1111
 		}
 	}
@@ -57,35 +100,12 @@ func MarchingSquares(raster *EsriASCIIRaster, height float64) []orb.LineString {
 	return finishedLines
 }
 
-func calculateLine(raster *EsriASCIIRaster, col, row uint, height float64, bit contourLineBit, visitedCells *[]cellEdge) orb.LineString {
-	ring := orb.Ring{bit.Start, bit.End}
-
-	nextCol, nextRow, nextEdge, err := nextCell(raster, col, row, bit.EndEdge)
-	if err == nil {
-		ring = append(ring, followLineRecursive(raster, height, nextEdge, nextCol, nextRow, col, row, visitedCells)...)
-	}
-
-	if !ring.Closed() {
-		nextCol, nextRow, nextEdge, err = nextCell(raster, col, row, bit.StartEdge)
-		if err == nil {
-			endDirPoints := orb.Ring(followLineRecursive(raster, height, nextEdge, nextCol, nextRow, col, row, visitedCells))
-			endDirPoints.Reverse()
-			ring = append(endDirPoints, ring...)
-		}
-	}
-
-	return orb.LineString(ring)
-}
-
-func followLineRecursive(raster *EsriASCIIRaster, height float64, edge cellEdge, col, row, startCol, startRow uint, visitedCells *[]cellEdge) []orb.Point {
-	if col == startCol && row == startRow {
-		return []orb.Point{}
-	}
-
-	bits := calcBitsForColRow(raster, col, row, height)
+// followLine follows line recursively to either the edge of the raster of the start cell
+func followLine(raster *EsriASCIIRaster, height float64, edge cellEdge_, cell, startCell cell_, visitedCells *[]cellEdge_) []orb.Point {
+	bits := calcBitsForColRow(raster, cell, height)
 
 	// find bit which starts at startEdge
-	var bit contourLineBit
+	var bit contourLineBit_
 	found := false
 	for _, b := range bits {
 		if b.StartEdge == edge {
@@ -111,62 +131,63 @@ func followLineRecursive(raster *EsriASCIIRaster, height float64, edge cellEdge,
 		return []orb.Point{}
 	}
 
+	// mark cell as visited
 	if len(bits) == 1 {
-		(*visitedCells)[cellIndex(raster, col, row)] = 0b1111
+		(*visitedCells)[cellIndex(raster, cell)] = 0b1111
 	} else {
-		(*visitedCells)[cellIndex(raster, col, row)] |= bit.StartEdge
-		(*visitedCells)[cellIndex(raster, col, row)] |= bit.EndEdge
+		(*visitedCells)[cellIndex(raster, cell)] |= bit.StartEdge
+		(*visitedCells)[cellIndex(raster, cell)] |= bit.EndEdge
 	}
 
-	nextCol, nextRow, nextEdge, err := nextCell(raster, col, row, bit.EndEdge)
-
-	if err == nil {
-		return append([]orb.Point{bit.End}, followLineRecursive(raster, height, nextEdge, nextCol, nextRow, startCol, startRow, visitedCells)...)
+	// calculate next cell
+	nextCell, nextEdge, err := neighbourCell(raster, cell, bit.EndEdge)
+	if err != nil || (nextCell.Col == startCell.Col && nextCell.Row == startCell.Row) {
+		return []orb.Point{ bit.End }
 	}
-
-	return []orb.Point{
-		bit.End,
-	}
+	
+	// recurse to next cell
+	return append([]orb.Point{bit.End}, followLine(raster, height, nextEdge, nextCell, startCell, visitedCells)...)
 }
 
-func nextCell(raster *EsriASCIIRaster, col, row uint, edge cellEdge) (uint, uint, cellEdge, error) {
+// neighbourCell calculates the neighbouring cell on given edge
+func neighbourCell(raster *EsriASCIIRaster, cell cell_, edge cellEdge_) (cell_, cellEdge_, error) {
 	switch edge {
-	case topIndex:
-		if row == 0 {
-			return 0, 0, 0, fmt.Errorf("Out of bounds")
+	case topEdgeIndex:
+		if cell.Row == 0 {
+			return cell_{}, 0, fmt.Errorf("Out of bounds")
 		}
-		return col, row - 1, bottomIndex, nil
-	case leftIndex:
-		if col == 0 {
-			return 0, 0, 0, fmt.Errorf("Out of bounds")
+		return cell_{cell.Col, cell.Row - 1}, bottomEdgeIndex, nil
+	case leftEdgeIndex:
+		if cell.Col == 0 {
+			return cell_{}, 0, fmt.Errorf("Out of bounds")
 		}
-		return col - 1, row, rightIndex, nil
-	case bottomIndex:
-		if row == raster.Nrows-2 {
-			return 0, 0, 0, fmt.Errorf("Out of bounds")
+		return cell_{cell.Col - 1, cell.Row}, rightEdgeIndex, nil
+	case bottomEdgeIndex:
+		if cell.Row == raster.Nrows-2 {
+			return cell_{}, 0, fmt.Errorf("Out of bounds")
 		}
-		return col, row + 1, topIndex, nil
-	case rightIndex:
-		if col == raster.Ncols-2 {
-			return 0, 0, 0, fmt.Errorf("Out of bounds")
+		return cell_{cell.Col, cell.Row + 1}, topEdgeIndex, nil
+	case rightEdgeIndex:
+		if cell.Col == raster.Ncols-2 {
+			return cell_{}, 0, fmt.Errorf("Out of bounds")
 		}
-		return col + 1, row, leftIndex, nil
+		return cell_{cell.Col + 1, cell.Row}, leftEdgeIndex, nil
 	}
 
-	return 0, 0, 0, fmt.Errorf("No valid edge")
+	return cell_{}, 0, fmt.Errorf("No valid edge")
 }
 
-// calcBitsForColRow calculates contour line bits for cell which 
-func calcBitsForColRow(raster *EsriASCIIRaster, col, row uint, height float64) []contourLineBit {
-	tlHeight := raster.Z(col, row)
-	trHeight := raster.Z(col+1, row)
-	brHeight := raster.Z(col+1, row+1)
-	blHeight := raster.Z(col, row+1)
+// calcBitsForColRow calculates contour line bits for given cell and height
+func calcBitsForColRow(raster *EsriASCIIRaster, cell cell_, height float64) []contourLineBit_ {
+	tlHeight := raster.Z(cell.Col, cell.Row)
+	trHeight := raster.Z(cell.Col+1, cell.Row)
+	brHeight := raster.Z(cell.Col+1, cell.Row+1)
+	blHeight := raster.Z(cell.Col, cell.Row+1)
 
-	leftX := raster.X(col)
-	rightX := raster.X(col + 1)
-	bottomY := raster.Y(row + 1)
-	topY := raster.Y(row)
+	leftX := raster.X(cell.Col)
+	rightX := raster.X(cell.Col + 1)
+	bottomY := raster.Y(cell.Row + 1)
+	topY := raster.Y(cell.Row)
 
 	// find MS "case"
 	index := uint8(0)
@@ -185,107 +206,107 @@ func calcBitsForColRow(raster *EsriASCIIRaster, col, row uint, height float64) [
 
 	switch index {
 	case 0:
-		return []contourLineBit{}
+		return []contourLineBit_{}
 	case 1, 14:
-		return []contourLineBit{
+		return []contourLineBit_{
 			// one line from bottom to left edge
-			contourLineBit{
-				StartEdge: bottomIndex,
-				EndEdge:   leftIndex,
+			contourLineBit_{
+				StartEdge: bottomEdgeIndex,
+				EndEdge:   leftEdgeIndex,
 				Start:     orb.Point{interpolate(leftX, blHeight, rightX, brHeight, height), bottomY}, // BOTTOM EDGE
 				End:       orb.Point{leftX, interpolate(bottomY, blHeight, topY, tlHeight, height)},   // LEFT EDGE
 			},
 		}
 	case 2, 13:
-		return []contourLineBit{
+		return []contourLineBit_{
 			// one line from right to bottom edge
-			contourLineBit{
-				StartEdge: rightIndex,
-				EndEdge:   bottomIndex,
+			contourLineBit_{
+				StartEdge: rightEdgeIndex,
+				EndEdge:   bottomEdgeIndex,
 				Start:     orb.Point{rightX, interpolate(bottomY, brHeight, topY, trHeight, height)},  // RIGHT EDGE
 				End:       orb.Point{interpolate(leftX, blHeight, rightX, brHeight, height), bottomY}, // BOTTOM EDGE
 			},
 		}
 	case 3, 12:
-		return []contourLineBit{
+		return []contourLineBit_{
 			// one line from right to left edge
-			contourLineBit{
-				StartEdge: rightIndex,
-				EndEdge:   leftIndex,
+			contourLineBit_{
+				StartEdge: rightEdgeIndex,
+				EndEdge:   leftEdgeIndex,
 				Start:     orb.Point{rightX, interpolate(bottomY, brHeight, topY, trHeight, height)}, // RIGHT EDGE
 				End:       orb.Point{leftX, interpolate(bottomY, blHeight, topY, tlHeight, height)},  // LEFT EDGE
 			},
 		}
 	case 4, 11:
-		return []contourLineBit{
+		return []contourLineBit_{
 			// one line from top to right edge
-			contourLineBit{
-				StartEdge: topIndex,
-				EndEdge:   rightIndex,
+			contourLineBit_{
+				StartEdge: topEdgeIndex,
+				EndEdge:   rightEdgeIndex,
 				Start:     orb.Point{interpolate(leftX, tlHeight, rightX, trHeight, height), topY},   // TOP EDGE
 				End:       orb.Point{rightX, interpolate(bottomY, brHeight, topY, trHeight, height)}, // RIGHT EDGE
 			},
 		}
 	case 5:
-		return []contourLineBit{
+		return []contourLineBit_{
 			// one line from left to top edge
-			contourLineBit{
-				StartEdge: leftIndex,
-				EndEdge:   topIndex,
+			contourLineBit_{
+				StartEdge: leftEdgeIndex,
+				EndEdge:   topEdgeIndex,
 				Start:     orb.Point{leftX, interpolate(bottomY, blHeight, topY, tlHeight, height)}, // LEFT EDGE
 				End:       orb.Point{interpolate(leftX, tlHeight, rightX, trHeight, height), topY},  // TOP EDGE
 			},
 			// one line from bottom to right edge
-			contourLineBit{
-				StartEdge: bottomIndex,
-				EndEdge:   rightIndex,
+			contourLineBit_{
+				StartEdge: bottomEdgeIndex,
+				EndEdge:   rightEdgeIndex,
 				Start:     orb.Point{interpolate(leftX, blHeight, rightX, brHeight, height), bottomY}, // BOTTOM EDGE
 				End:       orb.Point{rightX, interpolate(bottomY, brHeight, topY, trHeight, height)},  // RIGHT EDGE
 			},
 		}
 	case 6, 9:
-		return []contourLineBit{
+		return []contourLineBit_{
 			// one line from top to bottom edge
-			contourLineBit{
-				StartEdge: topIndex,
-				EndEdge:   bottomIndex,
+			contourLineBit_{
+				StartEdge: topEdgeIndex,
+				EndEdge:   bottomEdgeIndex,
 				Start:     orb.Point{interpolate(leftX, tlHeight, rightX, trHeight, height), topY},    // TOP EDGE
 				End:       orb.Point{interpolate(leftX, blHeight, rightX, brHeight, height), bottomY}, // BOTTOM EDGE
 			},
 		}
 	case 7, 8:
-		return []contourLineBit{
+		return []contourLineBit_{
 			// one line from left to top edge
-			contourLineBit{
-				StartEdge: leftIndex,
-				EndEdge:   topIndex,
+			contourLineBit_{
+				StartEdge: leftEdgeIndex,
+				EndEdge:   topEdgeIndex,
 				Start:     orb.Point{leftX, interpolate(bottomY, blHeight, topY, tlHeight, height)}, // LEFT EDGE
 				End:       orb.Point{interpolate(leftX, tlHeight, rightX, trHeight, height), topY},  // TOP EDGE
 			},
 		}
 	case 10:
-		return []contourLineBit{
+		return []contourLineBit_{
 			// one line from left to bottom edge
-			contourLineBit{
-				StartEdge: leftIndex,
-				EndEdge:   bottomIndex,
+			contourLineBit_{
+				StartEdge: leftEdgeIndex,
+				EndEdge:   bottomEdgeIndex,
 				Start:     orb.Point{leftX, interpolate(bottomY, blHeight, topY, tlHeight, height)},   // LEFT EDGE
 				End:       orb.Point{interpolate(leftX, blHeight, rightX, brHeight, height), bottomY}, // BOTTOM EDGE
 			},
 			// one line from top to right edge
-			contourLineBit{
-				StartEdge: topIndex,
-				EndEdge:   rightIndex,
+			contourLineBit_{
+				StartEdge: topEdgeIndex,
+				EndEdge:   rightEdgeIndex,
 				Start:     orb.Point{interpolate(leftX, tlHeight, rightX, trHeight, height), topY},   // TOP EDGE
 				End:       orb.Point{rightX, interpolate(bottomY, brHeight, topY, trHeight, height)}, // RIGHT EDGE
 			},
 		}
 	case 15:
 		// no lines
-		return []contourLineBit{}
+		return []contourLineBit_{}
 	}
 
-	return []contourLineBit{}
+	return []contourLineBit_{}
 }
 
 // linear interpolations between two known points
