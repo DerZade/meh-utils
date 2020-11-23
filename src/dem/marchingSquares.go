@@ -13,7 +13,7 @@ type contourLineBit_ struct {
 	EndEdge   cellEdge_
 }
 
-type cellEdge_ = uint8
+type cellEdge_ = byte
 
 type cell_ struct {
 	Col uint
@@ -36,7 +36,7 @@ func cellIndex(raster *EsriASCIIRaster, cell cell_) uint {
 func MarchingSquares(raster *EsriASCIIRaster, height float64) []orb.LineString {
 	finishedLines := []orb.LineString{}
 
-	// each cell is represented by a CellEdge (uint8). The first four bits of each CellEdge
+	// each cell is represented by a cellEdge_ (byte). The first four bits of each cellEdge_
 	// indicate which edges are already accounted for:
 	// 0bXXXX
 	//   │││└─ top
