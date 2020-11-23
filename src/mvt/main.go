@@ -38,7 +38,7 @@ func Run(flagSet *flag.FlagSet) {
 		os.Exit(1)
 	}
 
-	// make sure layerSettings is either "" of a valid file
+	// make sure layerSettings is either "" or a valid file
 	if *layerSettingsPtr != "" && !utils.IsFile(*layerSettingsPtr) {
 		log.Fatal(errors.New("LayerSettings is not a valid file"))
 	}

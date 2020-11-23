@@ -28,12 +28,12 @@ func buildMounts(raster *dem.EsriASCIIRaster, elevOffset float64, layers *map[st
 
 			// compare cell with all direct neighbours
 			for compareRow := row - 1; compareRow <= row+1; compareRow++ {
-				// no peak/bottom, if we have lower and higher neighbours -> break
+				// no peak, if we have lower and higher neighbours -> break
 				if hasHigherNeighbours && hasLowerNeighbours {
 					break
 				}
 				for compareCol := col - 1; compareCol <= col+1; compareCol++ {
-					// no peak/bottom, if we have lower and higher neighbours -> break
+					// no peak, if we have lower and higher neighbours -> break
 					if hasHigherNeighbours && hasLowerNeighbours {
 						break
 					}

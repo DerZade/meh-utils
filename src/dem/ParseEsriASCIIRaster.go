@@ -12,7 +12,7 @@ import (
 func ParseEsriASCIIRaster(reader io.Reader) (EsriASCIIRaster, error) {
 
 	raster := EsriASCIIRaster{}
-	remHeaderKeywords := []string{"NCOLS", "NROWS", "XLLCENTER", "XLLCORNER", "YLLCENTER", "YLLCORNER", "CELLSIZE", "NODATA_VALUE"}
+	remainingHeaders := []string{"NCOLS", "NROWS", "XLLCENTER", "XLLCORNER", "YLLCENTER", "YLLCORNER", "CELLSIZE", "NODATA_VALUE"}
 	stillIsHeader := true
 	rowIndex := uint(0)
 	var esriData [][]float64
@@ -26,17 +26,17 @@ func ParseEsriASCIIRaster(reader io.Reader) (EsriASCIIRaster, error) {
 		// first field as upper case
 		keyword := strings.ToUpper(fields[0])
 
-		if stillIsHeader && contains(remHeaderKeywords, keyword) {
-			remHeaderKeywords = remove(remHeaderKeywords, keyword)
+		if stillIsHeader && contains(remainingHeaders, keyword) {
+			remainingHeaders = remove(remainingHeaders, keyword)
 
 			// there can either be corner or center not both
 			if keyword == "XLLCENTER" || keyword == "YLLCENTER" {
-				remHeaderKeywords = remove(remHeaderKeywords, "XLLCORNER")
-				remHeaderKeywords = remove(remHeaderKeywords, "YLLCORNER")
+				remainingHeaders = remove(remainingHeaders, "XLLCORNER")
+				remainingHeaders = remove(remainingHeaders, "YLLCORNER")
 			}
 			if keyword == "XLLCORNER" || keyword == "YLLCORNER" {
-				remHeaderKeywords = remove(remHeaderKeywords, "XLLCENTER")
-				remHeaderKeywords = remove(remHeaderKeywords, "YLLCENTER")
+				remainingHeaders = remove(remainingHeaders, "XLLCENTER")
+				remainingHeaders = remove(remainingHeaders, "YLLCENTER")
 			}
 
 			err := parseHeaderLine(fields, &raster)
@@ -47,9 +47,9 @@ func ParseEsriASCIIRaster(reader io.Reader) (EsriASCIIRaster, error) {
 		} else {
 			if stillIsHeader { // this is the first data line, if stillIsHeader is true
 				// we're just going to remove the NODATA_VALUE if it is still present, because it's a optional header
-				remHeaderKeywords = remove(remHeaderKeywords, "NODATA_VALUE")
+				remainingHeaders = remove(remainingHeaders, "NODATA_VALUE")
 
-				if len(remHeaderKeywords) > 0 {
+				if len(remainingHeaders) > 0 {
 					return raster, fmt.Errorf("DEM doesn't include all mandatory headers")
 				}
 
@@ -164,23 +164,25 @@ func parseDataLine(fields []string, cols uint) ([]float64, error) {
 	return row, nil
 }
 
-func contains(s []string, e string) bool {
-	for _, a := range s {
-		if a == e {
+// contains checks whether an array contains a string
+func contains(array []string, element string) bool {
+	for _, curElement := range array {
+		if curElement == element {
 			return true
 		}
 	}
 	return false
 }
 
-func remove(s []string, e string) []string {
-	var r []string
+// remove removes a string from an array
+func remove(arr []string, element string) []string {
+	var remaining []string
 
-	for i := 0; i < len(s); i++ {
-		if e != s[i] {
-			r = append(r, s[i])
+	for i := 0; i < len(arr); i++ {
+		if element != arr[i] {
+			remaining = append(remaining, arr[i])
 		}
 	}
 
-	return r
+	return remaining
 }

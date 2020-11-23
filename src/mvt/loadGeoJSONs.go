@@ -78,8 +78,8 @@ func readGzippedGeoJSON(geoJSONPath string) *geojson.FeatureCollection {
 		log.Fatal(err)
 	}
 
-	defer file.Close()
-	defer gz.Close()
+	file.Close()
+	gz.Close()
 
 	var features []geojson.Feature
 
