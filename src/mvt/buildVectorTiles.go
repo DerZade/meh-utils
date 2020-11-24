@@ -26,19 +26,19 @@ const tileSize = mvt.DefaultExtent
 func buildVectorTiles(outputPath string, collectionsPtr *map[string]*geojson.FeatureCollection, maxLod uint8, worldSize float64, layerSettings *[]layerSetting) {
 
 	for lod := uint8(0); lod <= maxLod; lod++ {
-		lodDir := path.Join(outputPath, fmt.Sprintf("%d", lod))
+		lodPath := path.Join(outputPath, fmt.Sprintf("%d", lod))
 		start := time.Now()
 
 		// create LOD directory
-		if !utils.IsDirectory(path.Dir(lodDir)) {
-			err := os.MkdirAll(lodDir, os.ModePerm)
+		if !utils.IsDirectory(path.Dir(lodPath)) {
+			err := os.MkdirAll(lodPath, os.ModePerm)
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
 		}
 
-		buildLODVectorTiles(lod, lodDir, collectionsPtr, worldSize, layerSettings)
+		buildLODVectorTiles(lod, lodPath, collectionsPtr, worldSize, layerSettings)
 
 		fmt.Println("    ✔️  Finished tiles for LOD", lod, "in", time.Now().Sub(start).String())
 	}
@@ -65,122 +65,110 @@ func buildLODVectorTiles(lod uint8, lodDir string, collectionsPtr *map[string]*g
 		l.Version = 2
 	}
 
-	// simplify
-	layers.Simplify(simplify.DouglasPeucker(1.0))
-	layers.RemoveEmpty(10.0, 20.0)
-
-	// TODO: Remove points to close together
-
-	tileWaitGroup := sync.WaitGroup{}
+	colWaitGrp := sync.WaitGroup{}
 
 	sem := semaphore.NewWeighted(int64(runtime.NumCPU()))
 
 	for col := uint32(0); col < tilesPerRowCol; col++ {
-		// create column directory
-		colPath := path.Join(lodDir, fmt.Sprintf("%d", col))
-		if !utils.IsDirectory(colPath) {
-			err := os.MkdirAll(colPath, os.ModePerm)
-			if err != nil {
-				fmt.Println(err)
-				return
+		colWaitGrp.Add(1)
+		go func(col uint32) {
+			defer colWaitGrp.Done()
+			// create column directory
+			colPath := path.Join(lodDir, fmt.Sprintf("%d", col))
+			if !utils.IsDirectory(colPath) {
+				err := os.MkdirAll(colPath, os.ModePerm)
+				if err != nil {
+					fmt.Println(err)
+					return
+				}
 			}
-		}
 
-		for row := uint32(0); row < tilesPerRowCol; row++ {
-			tileWaitGroup.Add(1)
-			go func(c, r uint32) {
-				defer tileWaitGroup.Done()
+			rowWaitGrp := sync.WaitGroup{}
 
-				sem.Acquire(context.Background(), 1)
+			for row := uint32(0); row < tilesPerRowCol; row++ {
+				rowWaitGrp.Add(1)
+				go func(row uint32) {
+					defer rowWaitGrp.Done()
 
-				data, err := createTile(c, r, layers)
-				if err != nil {
-					fmt.Printf("Error while creating tile %d/%d/%d\n", lod, c, r)
-					return
-				}
-				sem.Release(1)
+					sem.Acquire(context.Background(), 1)
 
-				tilePath := path.Join(colPath, fmt.Sprintf("%d.pbf", r))
-				err = writeTile(tilePath, data)
-				if err != nil {
-					fmt.Printf("Error while writing tile %d/%d/%d\n", lod, c, r)
-					return
-				}
-			}(col, row)
-		}
+					data, err := createTile(col, row, layers)
+					if err != nil {
+						fmt.Printf("Error while creating tile %d/%d/%d\n", lod, col, row)
+						return
+					}
+
+					tilePath := path.Join(colPath, fmt.Sprintf("%d.pbf", row))
+					writeTile(tilePath, data)
+
+					sem.Release(1)
+
+				}(row)
+			}
+
+			rowWaitGrp.Wait()
+		}(col)
 	}
 
-	tileWaitGroup.Wait()
+	colWaitGrp.Wait()
 }
 
-// findLODLayers return a mvt.Layers object which includes all layers valid for given LOD
-func findLODLayers(allCollections *map[string]*geojson.FeatureCollection, settingsPtr *[]layerSetting, lod uint16) mvt.Layers {
+// findLODLayers return a map which includes all layers needed for given LOD
+func findLODLayers(allLayersPtr *map[string]*geojson.FeatureCollection, settingsPtr *[]layerSetting, lod uint16) mvt.Layers {
 
-	lodCollections := make(map[string]*geojson.FeatureCollection)
+	lodMap := make(map[string]*geojson.FeatureCollection)
 
-	for layerName, fc := range *allCollections {
+	for layerName, fc := range *allLayersPtr {
+		layerSet := findLayerSettings(settingsPtr, layerSetting{Layer: layerName, MinZoom: nil, MaxZoom: nil}, layerName)
 
-		// find layer settings for layerName
-		layerSettings := layerSetting{Layer: layerName, MinZoom: nil, MaxZoom: nil}
-		for _, setting := range *settingsPtr {
-			if setting.Layer == layerName {
-				layerSettings = setting
-				break
-			}
-		}
-
-		if layerSettings.MaxZoom == nil && layerSettings.MinZoom == nil {
+		if layerSet.MaxZoom == nil && layerSet.MinZoom == nil {
 			// both min- and maxzoom are not set
-			lodCollections[layerName] = utils.DeepCloneFeatureCollection(fc)
-		} else if layerSettings.MinZoom == nil {
+			lodMap[layerName] = utils.DeepCloneFeatureCollection(fc)
+		} else if layerSet.MinZoom == nil {
 			// only maxzoom is set
-			if *layerSettings.MaxZoom >= lod {
-				lodCollections[layerName] = utils.DeepCloneFeatureCollection(fc)
+			if *layerSet.MaxZoom >= lod {
+				lodMap[layerName] = utils.DeepCloneFeatureCollection(fc)
 			}
-		} else if layerSettings.MaxZoom == nil {
+		} else if layerSet.MaxZoom == nil {
 			// only minzoom is set
-			if *layerSettings.MinZoom <= lod {
-				lodCollections[layerName] = utils.DeepCloneFeatureCollection(fc)
+			if *layerSet.MinZoom <= lod {
+				lodMap[layerName] = utils.DeepCloneFeatureCollection(fc)
 			}
 		} else {
 			// both min- and maxzoom are set
-			if *layerSettings.MinZoom <= lod && *layerSettings.MaxZoom >= lod {
-				lodCollections[layerName] = utils.DeepCloneFeatureCollection(fc)
+			if *layerSet.MinZoom <= lod && *layerSet.MaxZoom >= lod {
+				lodMap[layerName] = utils.DeepCloneFeatureCollection(fc)
 			}
 		}
 	}
-	return mvt.NewLayers(lodCollections)
+	return mvt.NewLayers(lodMap)
+}
+
+func findLayerSettings(allSettings *[]layerSetting, defaults layerSetting, layer string) layerSetting {
+	for _, setting := range *allSettings {
+		if setting.Layer == layer {
+			return setting
+		}
+	}
+
+	return defaults
 }
 
 func createTile(x uint32, y uint32, layers mvt.Layers) ([]byte, error) {
-	layersClone := utils.DeepCloneLayers(layers)
+	lClone := utils.DeepCloneLayers(layers)
 
-	xOffset := float64(x * tileSize)
-	yOffset := float64(y * tileSize)
-	projectLayersInPlace(layersClone, func(p orb.Point) orb.Point {
+	projectLayersInPlace(lClone, func(p orb.Point) orb.Point {
 		return orb.Point{
-			p[0] - xOffset,
-			p[1] - yOffset,
+			p[0] - float64(x*tileSize),
+			p[1] - float64(y*tileSize),
 		}
 	})
 
-	layersClone.Clip(mvt.MapboxGLDefaultExtentBound)
-	// Clip doesn't remove empty features so we'll have to do that ourselves
-	for _, layer := range layersClone {
-		count := 0
-		for i := 0; i < len(layer.Features); i++ {
-			feature := layer.Features[i]
-			if feature.Geometry == nil {
-				continue
-			}
+	lClone.Clip(mvt.MapboxGLDefaultExtentBound)
+	lClone.Simplify(simplify.DouglasPeucker(1.0))
+	lClone.RemoveEmpty(10.0, 20.0)
 
-			layer.Features[count] = feature
-		}
-		layer.Features = layer.Features[:count]
-	}
-
-	// marshal tile
-	data, err := mvt.MarshalGzipped(layersClone)
+	data, err := mvt.MarshalGzipped(lClone)
 	if err != nil {
 		return []byte{}, err
 	}
@@ -207,11 +195,10 @@ func writeTile(tilePath string, data []byte) error {
 	return nil
 }
 
-// projectLayersInPlace projects all features of a layer
-func projectLayersInPlace(layers mvt.Layers, projection orb.Projection) {
-	for _, layer := range layers {
-		for _, feature := range (*layer).Features {
-			feature.Geometry = project.Geometry(feature.Geometry, projection)
+func projectLayersInPlace(ls mvt.Layers, p orb.Projection) {
+	for _, l := range ls {
+		for _, f := range (*l).Features {
+			f.Geometry = project.Geometry(f.Geometry, p)
 		}
 	}
 }
