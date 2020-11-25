@@ -65,6 +65,12 @@ func buildLODVectorTiles(lod uint8, lodDir string, collectionsPtr *map[string]*g
 		l.Version = 2
 	}
 
+	// simplify
+	layers.Simplify(simplify.DouglasPeucker(1.0))
+	layers.RemoveEmpty(10.0, 20.0)
+
+	// TODO: Remove points too close together
+
 	colWaitGrp := sync.WaitGroup{}
 
 	sem := semaphore.NewWeighted(int64(runtime.NumCPU()))
@@ -119,7 +125,15 @@ func findLODLayers(allCollections *map[string]*geojson.FeatureCollection, settin
 	lodCollections := make(map[string]*geojson.FeatureCollection)
 
 	for layerName, fc := range *allCollections {
-		layerSettings := findLayerSettings(settingsPtr, layerSetting{Layer: layerName, MinZoom: nil, MaxZoom: nil}, layerName)
+
+		// find layer settings for layerName
+		layerSettings := layerSetting{Layer: layerName, MinZoom: nil, MaxZoom: nil}
+		for _, setting := range *settingsPtr {
+			if setting.Layer == layerName {
+				layerSettings = setting
+				break
+			}
+		}
 
 		if layerSettings.MaxZoom == nil && layerSettings.MinZoom == nil {
 			// both min- and maxzoom are not set
@@ -144,16 +158,6 @@ func findLODLayers(allCollections *map[string]*geojson.FeatureCollection, settin
 	return mvt.NewLayers(lodCollections)
 }
 
-func findLayerSettings(allSettings *[]layerSetting, defaults layerSetting, layer string) layerSetting {
-	for _, setting := range *allSettings {
-		if setting.Layer == layer {
-			return setting
-		}
-	}
-
-	return defaults
-}
-
 func createTile(x uint32, y uint32, layers mvt.Layers) ([]byte, error) {
 	layersClone := utils.DeepCloneLayers(layers)
 
@@ -167,8 +171,20 @@ func createTile(x uint32, y uint32, layers mvt.Layers) ([]byte, error) {
 	})
 
 	layersClone.Clip(mvt.MapboxGLDefaultExtentBound)
-	layersClone.Simplify(simplify.DouglasPeucker(1.0))
-	layersClone.RemoveEmpty(10.0, 20.0)
+	layersClone.RemoveEmpty(0, 0)
+	// Clip doesn't remove empty features so we'll have to do that ourselves
+	// for _, layer := range layersClone {
+	// 	count := 0
+	// 	for i := 0; i < len(layer.Features); i++ {
+	// 		feature := layer.Features[i]
+	// 		if feature.Geometry == nil {
+	// 			continue
+	// 		}
+
+	// 		layer.Features[count] = feature
+	// 	}
+	// 	layer.Features = layer.Features[:count]
+	// }
 
 	// marshal tile
 	data, err := mvt.MarshalGzipped(layersClone)
