@@ -71,52 +71,47 @@ func buildLODVectorTiles(lod uint8, lodDir string, collectionsPtr *map[string]*g
 
 	// TODO: Remove points too close together
 
-	colWaitGrp := sync.WaitGroup{}
+	tileWaitGroup := sync.WaitGroup{}
 
 	sem := semaphore.NewWeighted(int64(runtime.NumCPU()))
 
 	for col := uint32(0); col < tilesPerRowCol; col++ {
-		colWaitGrp.Add(1)
-		go func(col uint32) {
-			defer colWaitGrp.Done()
-			// create column directory
-			colPath := path.Join(lodDir, fmt.Sprintf("%d", col))
-			if !utils.IsDirectory(colPath) {
-				err := os.MkdirAll(colPath, os.ModePerm)
+		// create column directory
+		colPath := path.Join(lodDir, fmt.Sprintf("%d", col))
+		if !utils.IsDirectory(colPath) {
+			err := os.MkdirAll(colPath, os.ModePerm)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+		}
+
+		for row := uint32(0); row < tilesPerRowCol; row++ {
+			tileWaitGroup.Add(1)
+			go func(c, r uint32) {
+				defer tileWaitGroup.Done()
+
+				sem.Acquire(context.Background(), 1)
+
+				data, err := createTile(c, r, layers)
 				if err != nil {
-					fmt.Println(err)
+					fmt.Printf("Error while creating tile %d/%d/%d\n", lod, c, r)
 					return
 				}
-			}
+				sem.Release(1)
 
-			rowWaitGrp := sync.WaitGroup{}
+				tilePath := path.Join(colPath, fmt.Sprintf("%d.pbf", r))
+				err = writeTile(tilePath, data)
+				if err != nil {
+					fmt.Printf("Error while writing tile %d/%d/%d\n", lod, c, r)
+					return
+				}
 
-			for row := uint32(0); row < tilesPerRowCol; row++ {
-				rowWaitGrp.Add(1)
-				go func(row uint32) {
-					defer rowWaitGrp.Done()
-
-					sem.Acquire(context.Background(), 1)
-
-					data, err := createTile(col, row, layers)
-					if err != nil {
-						fmt.Printf("Error while creating tile %d/%d/%d\n", lod, col, row)
-						return
-					}
-
-					tilePath := path.Join(colPath, fmt.Sprintf("%d.pbf", row))
-					writeTile(tilePath, data)
-
-					sem.Release(1)
-
-				}(row)
-			}
-
-			rowWaitGrp.Wait()
-		}(col)
+			}(col, row)
+		}
 	}
 
-	colWaitGrp.Wait()
+	tileWaitGroup.Wait()
 }
 
 // findLODLayers return a mvt.Layers object which includes all layers valid for given LOD
