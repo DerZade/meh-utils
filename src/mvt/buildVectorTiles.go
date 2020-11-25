@@ -106,7 +106,6 @@ func buildLODVectorTiles(lod uint8, lodDir string, collectionsPtr *map[string]*g
 					fmt.Printf("Error while writing tile %d/%d/%d\n", lod, c, r)
 					return
 				}
-
 			}(col, row)
 		}
 	}
@@ -166,20 +165,20 @@ func createTile(x uint32, y uint32, layers mvt.Layers) ([]byte, error) {
 	})
 
 	layersClone.Clip(mvt.MapboxGLDefaultExtentBound)
-	layersClone.RemoveEmpty(0, 0)
 	// Clip doesn't remove empty features so we'll have to do that ourselves
-	// for _, layer := range layersClone {
-	// 	count := 0
-	// 	for i := 0; i < len(layer.Features); i++ {
-	// 		feature := layer.Features[i]
-	// 		if feature.Geometry == nil {
-	// 			continue
-	// 		}
+	for _, layer := range layersClone {
+		count := 0
+		for i := 0; i < len(layer.Features); i++ {
+			feature := layer.Features[i]
+			if feature.Geometry == nil {
+				continue
+			}
 
-	// 		layer.Features[count] = feature
-	// 	}
-	// 	layer.Features = layer.Features[:count]
-	// }
+			layer.Features[count] = feature
+			count++
+		}
+		layer.Features = layer.Features[:count]
+	}
 
 	// marshal tile
 	data, err := mvt.MarshalGzipped(layersClone)
