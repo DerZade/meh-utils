@@ -15,6 +15,7 @@ import (
 	"github.com/paulmach/orb"
 	"github.com/paulmach/orb/encoding/mvt"
 	"github.com/paulmach/orb/geojson"
+	"github.com/paulmach/orb/planar"
 	"github.com/paulmach/orb/project"
 	"github.com/paulmach/orb/simplify"
 
@@ -38,19 +39,19 @@ func buildVectorTiles(outputPath string, collectionsPtr *map[string]*geojson.Fea
 			}
 		}
 
-		buildLODVectorTiles(lod, lodDir, collectionsPtr, worldSize, layerSettings)
+		buildLODVectorTiles(lod, maxLod, lodDir, collectionsPtr, worldSize, layerSettings)
 
 		fmt.Println("    ✔️  Finished tiles for LOD", lod, "in", time.Now().Sub(start).String())
 	}
 }
 
-func buildLODVectorTiles(lod uint8, lodDir string, collectionsPtr *map[string]*geojson.FeatureCollection, worldSize float64, layerSettings *[]layerSetting) {
+func buildLODVectorTiles(lod, maxLod uint8, lodDir string, collectionsPtr *map[string]*geojson.FeatureCollection, worldSize float64, layerSettings *[]layerSetting) {
 	// how many tiles one row / col has
 	tilesPerRowCol := uint32(math.Pow(2, float64(lod)))
 
-	layers := findLODLayers(collectionsPtr, layerSettings, uint16(lod))
+	layers := findLODLayers(collectionsPtr, layerSettings, lod, maxLod)
 
-	// project features to pixels
+	// project features from arma coordinates to pixel coordinates
 	pixels := uint64(tileSize) * uint64(tilesPerRowCol) // how many pixels one row / col has
 	factor := float64(pixels) / worldSize               // factor to convert from arma coordinates to pixel Coords
 	projectLayersInPlace(layers, func(p orb.Point) orb.Point {
@@ -65,11 +66,23 @@ func buildLODVectorTiles(lod uint8, lodDir string, collectionsPtr *map[string]*g
 		l.Version = 2
 	}
 
+	mountThres := float64(1000)
 	// simplify
-	layers.Simplify(simplify.DouglasPeucker(1.0))
-	layers.RemoveEmpty(10.0, 20.0)
+	if lod != maxLod {
+		layers.Simplify(simplify.DouglasPeucker(10))
+		layers.RemoveEmpty(10, 30)
+	} else {
+		layers.Simplify(simplify.DouglasPeucker(1))
+		layers.RemoveEmpty(10, 20)
+		mountThres = 100
+	}
 
-	// TODO: Remove points too close together
+	// simplify mounts
+	for _, layer := range layers {
+		if layer.Name == "mount" {
+			simplifyMounts(layer, mountThres)
+		}
+	}
 
 	tileWaitGroup := sync.WaitGroup{}
 
@@ -98,6 +111,7 @@ func buildLODVectorTiles(lod uint8, lodDir string, collectionsPtr *map[string]*g
 					fmt.Printf("Error while creating tile %d/%d/%d\n", lod, c, r)
 					return
 				}
+
 				sem.Release(1)
 
 				tilePath := path.Join(colPath, fmt.Sprintf("%d.pbf", r))
@@ -106,6 +120,7 @@ func buildLODVectorTiles(lod uint8, lodDir string, collectionsPtr *map[string]*g
 					fmt.Printf("Error while writing tile %d/%d/%d\n", lod, c, r)
 					return
 				}
+
 			}(col, row)
 		}
 	}
@@ -114,12 +129,11 @@ func buildLODVectorTiles(lod uint8, lodDir string, collectionsPtr *map[string]*g
 }
 
 // findLODLayers return a mvt.Layers object which includes all layers valid for given LOD
-func findLODLayers(allCollections *map[string]*geojson.FeatureCollection, settingsPtr *[]layerSetting, lod uint16) mvt.Layers {
+func findLODLayers(allCollections *map[string]*geojson.FeatureCollection, settingsPtr *[]layerSetting, lod uint8, maxLod uint8) mvt.Layers {
 
 	lodCollections := make(map[string]*geojson.FeatureCollection)
 
 	for layerName, fc := range *allCollections {
-
 		// find layer settings for layerName
 		layerSettings := layerSetting{Layer: layerName, MinZoom: nil, MaxZoom: nil}
 		for _, setting := range *settingsPtr {
@@ -127,6 +141,11 @@ func findLODLayers(allCollections *map[string]*geojson.FeatureCollection, settin
 				layerSettings = setting
 				break
 			}
+		}
+
+		// make sure minZoom is not bigger than the maximum calculated layer
+		if layerSettings.MinZoom != nil && *layerSettings.MinZoom > maxLod {
+			layerSettings.MinZoom = &maxLod
 		}
 
 		if layerSettings.MaxZoom == nil && layerSettings.MinZoom == nil {
@@ -149,6 +168,7 @@ func findLODLayers(allCollections *map[string]*geojson.FeatureCollection, settin
 			}
 		}
 	}
+
 	return mvt.NewLayers(lodCollections)
 }
 
@@ -215,4 +235,26 @@ func projectLayersInPlace(layers mvt.Layers, projection orb.Projection) {
 			feature.Geometry = project.Geometry(feature.Geometry, projection)
 		}
 	}
+}
+
+func simplifyMounts(layer *mvt.Layer, threshold float64) {
+	keepCount := 0
+	for i := 0; i < len(layer.Features); i++ {
+		feature := layer.Features[i]
+
+		// make sure distance to all keep features is lower than threshold
+		keep := true
+		for j := 0; j < keepCount; j++ {
+			if planar.Distance(feature.Geometry.(orb.Point), layer.Features[j].Geometry.(orb.Point)) < threshold {
+				keep = false
+				break
+			}
+		}
+
+		if keep {
+			layer.Features[keepCount] = feature
+			keepCount++
+		}
+	}
+	layer.Features = layer.Features[:keepCount]
 }

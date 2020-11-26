@@ -64,9 +64,9 @@ const defaultLayerSettings = `
 ]`
 
 type layerSetting struct {
-	Layer   string  `json:"layer"`
-	MinZoom *uint16 `json:"minzoom,omitempty"`
-	MaxZoom *uint16 `json:"maxzoom,omitempty"`
+	Layer   string `json:"layer"`
+	MinZoom *uint8 `json:"minzoom,omitempty"`
+	MaxZoom *uint8 `json:"maxzoom,omitempty"`
 }
 
 func loadLayerSettings(filePath string) []layerSetting {

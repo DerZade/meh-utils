@@ -3,6 +3,7 @@ package mvt
 import (
 	"fmt"
 	"math"
+	"math/rand"
 
 	dem "../dem"
 	"github.com/paulmach/orb"
@@ -69,6 +70,34 @@ func buildMounts(raster *dem.EsriASCIIRaster, elevOffset float64, layers *map[st
 		}
 	}
 
+	mounts.Features = quicksortMounts(mounts.Features)
+
 	(*layers)["mount"] = mounts
 
+}
+
+func quicksortMounts(a []*geojson.Feature) []*geojson.Feature {
+	if len(a) < 2 {
+		return a
+	}
+
+	left, right := 0, len(a)-1
+
+	pivot := rand.Int() % len(a)
+
+	a[pivot], a[right] = a[right], a[pivot]
+
+	for i := 0; i < len(a); i++ {
+		if a[i].Properties["elevation"].(float64) < a[right].Properties["elevation"].(float64) {
+			a[left], a[i] = a[i], a[left]
+			left++
+		}
+	}
+
+	a[left], a[right] = a[right], a[left]
+
+	quicksortMounts(a[:left])
+	quicksortMounts(a[left+1:])
+
+	return a
 }
