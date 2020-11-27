@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -66,23 +67,7 @@ func buildLODVectorTiles(lod, maxLod uint8, lodDir string, collectionsPtr *map[s
 		l.Version = 2
 	}
 
-	mountThres := float64(1000)
-	// simplify
-	if lod != maxLod {
-		layers.Simplify(simplify.DouglasPeucker(10))
-		layers.RemoveEmpty(10, 30)
-	} else {
-		layers.Simplify(simplify.DouglasPeucker(1))
-		layers.RemoveEmpty(10, 20)
-		mountThres = 100
-	}
-
-	// simplify mounts
-	for _, layer := range layers {
-		if layer.Name == "mount" {
-			simplifyMounts(layer, mountThres)
-		}
-	}
+	simplifyLayers(&layers, lod == maxLod)
 
 	tileWaitGroup := sync.WaitGroup{}
 
@@ -257,4 +242,40 @@ func simplifyMounts(layer *mvt.Layer, threshold float64) {
 		}
 	}
 	layer.Features = layer.Features[:keepCount]
+}
+
+func simplifyLayers(layers *mvt.Layers, isMaxLod bool) {
+
+	simplifySkipLayers := []string{"bunker", "chapel", "church", "cross", "fuelstation", "lighthouse", "rock", "shipwreck", "transmitter", "watertower", "fortress", "fountain", "view-tower", "quay", "hospital", "busstop", "stack", "ruin", "tourism", "powersolar", "powerwave", "powerwind", "tree", "bush"}
+
+	skip := func(value string) bool {
+		for _, v := range simplifySkipLayers {
+			if v == value {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, layer := range *layers {
+		name := layer.Name
+
+		if strings.HasPrefix(name, "locations") || skip(name) {
+			continue
+		}
+
+		if isMaxLod && (name == "railway" || name == "powerline" || name == "water" || strings.HasPrefix(name, "contours")) {
+			layer.Simplify(simplify.DouglasPeucker(10))
+			layer.RemoveEmpty(10, 100)
+		} else if name == "mount" {
+			thres := float64(1000)
+			if isMaxLod {
+				thres = 100
+			}
+			simplifyMounts(layer, thres)
+		} else {
+			layers.Simplify(simplify.DouglasPeucker(1))
+			layers.RemoveEmpty(10, 20)
+		}
+	}
 }
