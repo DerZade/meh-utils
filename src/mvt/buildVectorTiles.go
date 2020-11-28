@@ -3,6 +3,7 @@ package mvt
 import (
 	"context"
 	"fmt"
+	"github.com/paulmach/orb/clip"
 	"math"
 	"os"
 	"path"
@@ -173,35 +174,61 @@ func findLODLayers(allCollections *map[string]*geojson.FeatureCollection, settin
 }
 
 func createTile(x uint32, y uint32, layers mvt.Layers) ([]byte, error) {
-	layersClone := utils.DeepCloneLayers(layers)
-
 	xOffset := float64(x * tileSize)
 	yOffset := float64(y * tileSize)
-	projectLayersInPlace(layersClone, func(p orb.Point) orb.Point {
+
+	tileBound := orb.Bound{
+		Min: orb.Point{mvt.MapboxGLDefaultExtentBound.Min[0] + xOffset, mvt.MapboxGLDefaultExtentBound.Min[1] + yOffset},
+		Max: orb.Point{mvt.MapboxGLDefaultExtentBound.Max[0] + xOffset, mvt.MapboxGLDefaultExtentBound.Max[1] + yOffset},
+	}
+
+	// projection from global coordinate space to tile coordinate space
+	tileProjection := func(p orb.Point) orb.Point {
 		return orb.Point{
 			p[0] - xOffset,
 			p[1] - yOffset,
 		}
-	})
+	}
 
-	layersClone.Clip(mvt.MapboxGLDefaultExtentBound)
-	// Clip doesn't remove empty features so we'll have to do that ourselves
-	for _, layer := range layersClone {
-		count := 0
-		for i := 0; i < len(layer.Features); i++ {
-			feature := layer.Features[i]
-			if feature.Geometry == nil {
+	tileLayers := make(mvt.Layers, len(layers))
+
+	for index, layer := range layers {
+		features := make([]*geojson.Feature, len(layer.Features))
+		keep := 0
+
+		for _, f := range layer.Features {
+			geo := orb.Clone(f.Geometry)
+			geo = clip.Geometry(tileBound, geo)
+
+			if geo == nil {
 				continue
 			}
 
-			layer.Features[count] = feature
-			count++
+			// project coordinates from global to tile coordinate space
+			geo = project.Geometry(geo, tileProjection)
+
+			// create feature
+			newFeature := geojson.NewFeature(geo)
+			newFeature.ID = f.ID
+			newFeature.Type = f.Type
+			newFeature.Properties = f.Properties.Clone()
+			copy(newFeature.BBox, f.BBox)
+
+			// save feature to new layer
+			features[keep] = newFeature
+			keep++
 		}
-		layer.Features = layer.Features[:count]
+
+		tileLayers[index] = &mvt.Layer{
+			Name:     layer.Name,
+			Version:  layer.Version,
+			Extent:   layer.Extent,
+			Features: features[:keep],
+		}
 	}
 
 	// marshal tile
-	data, err := mvt.MarshalGzipped(layersClone)
+	data, err := mvt.MarshalGzipped(tileLayers)
 	if err != nil {
 		return []byte{}, err
 	}

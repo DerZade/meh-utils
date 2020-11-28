@@ -2,7 +2,6 @@ package utils
 
 import (
 	"github.com/paulmach/orb"
-	"github.com/paulmach/orb/encoding/mvt"
 	"github.com/paulmach/orb/geojson"
 )
 
@@ -34,22 +33,4 @@ func DeepCloneFeatureCollection(fc *geojson.FeatureCollection) *geojson.FeatureC
 	newFc.Type = fc.Type
 
 	return newFc
-}
-
-// DeepCloneLayers deep clones given layers
-func DeepCloneLayers(layers mvt.Layers) mvt.Layers {
-
-	newLayers := make(mvt.Layers, len(layers))
-
-	for index, l := range layers {
-		fc := DeepCloneFeatureCollection(&geojson.FeatureCollection{Features: l.Features})
-		newLayers[index] = &mvt.Layer{
-			Name:     l.Name,
-			Version:  l.Version,
-			Extent:   l.Extent,
-			Features: fc.Features,
-		}
-	}
-
-	return newLayers
 }
