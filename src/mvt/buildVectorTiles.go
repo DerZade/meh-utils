@@ -20,13 +20,12 @@ import (
 	"github.com/paulmach/orb/project"
 	"github.com/paulmach/orb/simplify"
 
-	dem "../dem"
 	"../utils"
 )
 
 const tileSize = mvt.DefaultExtent
 
-func buildVectorTiles(outputPath string, collectionsPtr *map[string]*geojson.FeatureCollection, maxLod uint8, worldSize float64, layerSettings *[]layerSetting, raster *dem.EsriASCIIRaster) {
+func buildVectorTiles(outputPath string, collectionsPtr *map[string]*geojson.FeatureCollection, maxLod uint8, worldSize float64, layerSettings *[]layerSetting) {
 
 	for lod := uint8(0); lod <= maxLod; lod++ {
 		lodDir := path.Join(outputPath, fmt.Sprintf("%d", lod))
@@ -41,13 +40,13 @@ func buildVectorTiles(outputPath string, collectionsPtr *map[string]*geojson.Fea
 			}
 		}
 
-		buildLODVectorTiles(lod, maxLod, lodDir, collectionsPtr, worldSize, layerSettings, raster)
+		buildLODVectorTiles(lod, maxLod, lodDir, collectionsPtr, worldSize, layerSettings)
 
 		fmt.Println("    ✔️  Finished tiles for LOD", lod, "in", time.Now().Sub(start).String())
 	}
 }
 
-func buildLODVectorTiles(lod, maxLod uint8, lodDir string, collectionsPtr *map[string]*geojson.FeatureCollection, worldSize float64, layerSettings *[]layerSetting, raster *dem.EsriASCIIRaster) {
+func buildLODVectorTiles(lod, maxLod uint8, lodDir string, collectionsPtr *map[string]*geojson.FeatureCollection, worldSize float64, layerSettings *[]layerSetting) {
 	// how many tiles one row / col has
 	tilesPerRowCol := uint32(math.Pow(2, float64(lod)))
 
@@ -69,8 +68,6 @@ func buildLODVectorTiles(lod, maxLod uint8, lodDir string, collectionsPtr *map[s
 	}
 
 	simplifyLayers(&layers, lod == maxLod)
-
-	layers = fillContourLayers(layers, worldSize, raster)
 
 	tileWaitGroup := sync.WaitGroup{}
 
@@ -267,263 +264,18 @@ func simplifyLayers(layers *mvt.Layers, isMaxLod bool) {
 			continue
 		}
 
-		if name == "mount" {
+		if isMaxLod && (name == "railway" || name == "powerline" || name == "water" || strings.HasPrefix(name, "contours")) {
+			layer.Simplify(simplify.DouglasPeucker(10))
+			layer.RemoveEmpty(10, 100)
+		} else if name == "mount" {
 			thres := float64(1000)
 			if isMaxLod {
 				thres = 100
 			}
 			simplifyMounts(layer, thres)
-		} else if name == "railway" || name == "powerline" || name == "water" {
-			if isMaxLod {
-				layer.Simplify(simplify.DouglasPeucker(1))
-			} else {
-				layer.Simplify(simplify.DouglasPeucker(10))
-			}
-			layer.RemoveEmpty(10, 20)
-		} else if strings.HasPrefix(name, "contours") {
-			layer.Simplify(simplify.DouglasPeucker(10))
-			layer.RemoveEmpty(100, 500)
 		} else {
 			layers.Simplify(simplify.DouglasPeucker(1))
-
-			if isMaxLod {
-				layers.RemoveEmpty(0, 0)
-			} else {
-				layers.RemoveEmpty(10, 20)
-			}
+			layers.RemoveEmpty(10, 20)
 		}
 	}
-}
-
-func fillContourLayers(layers mvt.Layers, worldSize float64, raster *dem.EsriASCIIRaster) mvt.Layers {
-	contourLayerIndex := -1
-	c01Index := -1
-	c05Index := -1
-	c10Index := -1
-	c50Index := -1
-	c100Index := -1
-	waterIndex := -1
-
-	for index, layer := range layers {
-		if layer.Name == "contours" {
-			contourLayerIndex = index
-		} else if layer.Name == "contours/01" {
-			c01Index = index
-		} else if layer.Name == "contours/05" {
-			c05Index = index
-		} else if layer.Name == "contours/10" {
-			c10Index = index
-		} else if layer.Name == "contours/50" {
-			c50Index = index
-		} else if layer.Name == "contours/100" {
-			c100Index = index
-		} else if layer.Name == "water" {
-			waterIndex = index
-		}
-	}
-
-	if contourLayerIndex == -1 {
-		return layers
-	}
-
-	contourLayer := layers[contourLayerIndex]
-
-	waterLines := []orb.LineString{}
-
-	for _, feature := range contourLayer.Features {
-		elev := feature.Properties["dem_elevation"].(int)
-
-		if c01Index > -1 {
-			layers[c01Index].Features = append(layers[c01Index].Features, feature)
-		}
-		if c05Index > -1 && elev%5 == 0 {
-			layers[c05Index].Features = append(layers[c05Index].Features, feature)
-		}
-		if c10Index > -1 && elev%10 == 0 {
-			layers[c10Index].Features = append(layers[c10Index].Features, feature)
-		}
-		if c50Index > -1 && elev%50 == 0 {
-			layers[c50Index].Features = append(layers[c50Index].Features, feature)
-		}
-		if c100Index > -1 && elev%100 == 0 {
-			layers[c100Index].Features = append(layers[c100Index].Features, feature)
-		}
-
-		if elev == 0 {
-			waterLines = append(waterLines, feature.Geometry.(orb.LineString))
-		}
-	}
-
-	if len(waterLines) > 0 {
-		layers[waterIndex] = buildWater(waterLines, worldSize, raster)
-	}
-
-	layers[contourLayerIndex] = layers[len(layers)-1]
-	return layers[:len(layers)-1]
-}
-
-func buildWater(lines []orb.LineString, worldSize float64, raster *dem.EsriASCIIRaster) *mvt.Layer {
-	rings := make(map[int]orb.Ring)
-
-	// normalize rings
-	for index, line := range lines {
-		r := orb.Ring(line)
-
-		// close all rings
-		if !r.Closed() {
-			r = append(r, r[0])
-		}
-
-		// make sure the ring is winding order = clockwise
-		// https://stackoverflow.com/a/1165943
-		sum := float64(0)
-		for i := 1; i < len(r); i++ {
-			p1 := r[i-1]
-			p2 := r[i]
-			sum += (p2[0] - p1[0]) * (p2[1] + p1[1])
-		}
-		if sum < 0 {
-			r.Reverse()
-		}
-
-		rings[index] = r
-	}
-
-	// ring-id -> array of rings which this rings contains
-	ringsByParent := make(map[int][]int)
-
-	// ring-id -> number of parents
-	ringNumberOfParents := make(map[int]int)
-
-	// fill ringsByParent and ringNumberOfParents
-	for id, ring := range rings {
-		childIndices := []int{}
-
-		for childID, childRing := range rings {
-			// we don't need to compare the ring to itself
-			if id == childID {
-				continue
-			}
-
-			if ringContainsRing(&ring, &childRing) {
-				childIndices = append(childIndices, childID)
-				ringNumberOfParents[childID]++
-			}
-		}
-
-		ringsByParent[id] = childIndices
-	}
-
-	// find pos in DEM which is "significally" above / below 0
-	col := uint(0)
-	row := uint(0)
-	height := raster.Z(col, row)
-	for height < 0.1 && height > -0.1 {
-		col++
-
-		if col >= raster.Ncols {
-			row++
-			col = 0
-		}
-
-		height = raster.Z(col, row)
-	}
-	point := orb.Point{raster.X(col), raster.Y(row)}
-
-	// find number of rings which contain point
-	numOfContainingRings := 0
-	for _, ring := range rings {
-		if planar.RingContains(ring, point) {
-			numOfContainingRings++
-		}
-	}
-
-	// A: height > 0
-	// B: numOfContainingRings%2 == 0
-	//
-	// if point is above 0 and the number of rings, which contain point is..
-	//     ...even -> map isn't island (A && B)
-	//     ...odd -> map is island (A && !B)
-	// if point is below 0 and the number of rings, which contain point is..
-	//     ...even -> map is island (!A && B)
-	//     ...odd -> map isn't island (!A && !B)
-	isIsland := (height > 0) != (numOfContainingRings%2 == 0)
-
-	if isIsland {
-		wholeMapRingIndex := -1
-
-		wholeMapRing := orb.Ring{
-			orb.Point{0, 0},
-			orb.Point{0, worldSize},
-			orb.Point{worldSize, worldSize},
-			orb.Point{worldSize, 0},
-			orb.Point{0, 0},
-		}
-
-		childRings := make([]int, len(rings))
-		for id := range rings {
-			childRings[id] = id
-
-			ringNumberOfParents[id]++
-		}
-
-		ringsByParent[wholeMapRingIndex] = childRings
-		rings[wholeMapRingIndex] = wholeMapRing
-	}
-
-	maxNumOfParents := 0
-
-	// make sure rings are right winding order
-	for id, ring := range rings {
-		numOfParents := ringNumberOfParents[id]
-
-		if numOfParents > maxNumOfParents {
-			maxNumOfParents = numOfParents
-		}
-
-		if numOfParents%2 == 1 {
-			ring.Reverse()
-		}
-	}
-
-	waterFeatureCollection := geojson.NewFeatureCollection()
-
-	// create actual features
-	for level := maxNumOfParents - maxNumOfParents%2; level >= 0; level = level - 2 {
-		for ringID, ring := range rings {
-			if ringNumberOfParents[ringID] != level {
-				continue
-			}
-
-			poly := orb.Polygon{ring}
-			delete(rings, ringID)
-
-			// add all holes that are contained in current ring
-			holes := ringsByParent[ringID]
-			for _, id := range holes {
-				hole, found := rings[id]
-
-				if found {
-					poly = append(poly, hole)
-					delete(rings, id)
-				}
-			}
-
-			waterFeatureCollection.Append(geojson.NewFeature(poly))
-		}
-	}
-
-	return mvt.NewLayer("water", waterFeatureCollection)
-}
-
-func ringContainsRing(parent *orb.Ring, child *orb.Ring) bool {
-	for _, point := range *child {
-		contains := planar.RingContains(*parent, point)
-
-		if !contains {
-			return false
-		}
-	}
-
-	return true
 }

@@ -98,9 +98,6 @@ func Run(flagSet *flag.FlagSet) {
 	fmt.Printf("ℹ️  Loaded the following layers (%d): ", len(collections))
 	layerNames := make([]string, 0, len(collections))
 	for layerName := range collections {
-		if layerName == "contours" {
-			continue
-		}
 		layerNames = append(layerNames, layerName)
 	}
 	sort.Strings(layerNames)
@@ -112,7 +109,7 @@ func Run(flagSet *flag.FlagSet) {
 	// build mvts
 	timer = time.Now()
 	fmt.Println("▶️  Building mapbox vector tiles")
-	buildVectorTiles(*outputPtr, &collections, maxLod, meta.WorldSize, &layerSettings, &raster)
+	buildVectorTiles(*outputPtr, &collections, maxLod, meta.WorldSize, &layerSettings)
 	fmt.Println("✔️  Built mapbox vector tiles in", time.Now().Sub(timer).String())
 
 	// write tile.json
