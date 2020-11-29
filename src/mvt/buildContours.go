@@ -34,60 +34,46 @@ func buildContours(raster *dem.EsriASCIIRaster, elevOffset float64, worldSize fl
 
 	waitGrp := sync.WaitGroup{}
 
-	contours01 := geojson.NewFeatureCollection()
-	contours05 := geojson.NewFeatureCollection()
-	contours10 := geojson.NewFeatureCollection()
-	contours50 := geojson.NewFeatureCollection()
-	contours100 := geojson.NewFeatureCollection()
+	contours := geojson.NewFeatureCollection()
 
 	waterLines := []orb.LineString{}
 	sem := semaphore.NewWeighted(int64(runtime.NumCPU()))
-	var layersMux = sync.Mutex{}
+	var contoursMux = sync.Mutex{}
 
 	for elevation := int(minElevation - 1); elevation < int(maxElevation+1); elevation++ {
 		waitGrp.Add(1)
 		sem.Acquire(context.Background(), 1)
 		go func(elev int) {
 			defer waitGrp.Done()
+			defer sem.Release(1)
 
 			lines := dem.MarchingSquares(raster, float64(elev))
-
-			layersMux.Lock()
-			// add lines to correct feature collection
-			for _, line := range lines {
-				f := geojson.NewFeature(line)
-				f.Properties["elevation"] = float64(elev) + elevOffset
-				f.Properties["dem_elevation"] = float64(elev)
-				contours01.Append(f)
-				if elev%5 == 0 {
-					contours05.Append(f)
-				}
-				if elev%10 == 0 {
-					contours10.Append(f)
-				}
-				if elev%50 == 0 {
-					contours50.Append(f)
-				}
-				if elev%100 == 0 {
-					contours100.Append(f)
-				}
-			}
 
 			if elev == 0 {
 				waterLines = lines
 			}
-			layersMux.Unlock()
-			sem.Release(1)
+
+			contoursMux.Lock()
+			// add lines to correct feature collection
+			for _, line := range lines {
+				f := geojson.NewFeature(line)
+				f.Properties["elevation"] = float64(elev) + elevOffset
+				f.Properties["dem_elevation"] = elev
+				contours.Append(f)
+			}
+			contoursMux.Unlock()
+
 		}(elevation)
 	}
 
 	waitGrp.Wait()
 
-	(*layers)["contours/01"] = contours01
-	(*layers)["contours/05"] = contours05
-	(*layers)["contours/10"] = contours10
-	(*layers)["contours/50"] = contours50
-	(*layers)["contours/100"] = contours100
+	(*layers)["contours"] = contours
+	(*layers)["contours/01"] = geojson.NewFeatureCollection()
+	(*layers)["contours/05"] = geojson.NewFeatureCollection()
+	(*layers)["contours/10"] = geojson.NewFeatureCollection()
+	(*layers)["contours/50"] = geojson.NewFeatureCollection()
+	(*layers)["contours/100"] = geojson.NewFeatureCollection()
 
 	// build water
 	if len(waterLines) > 0 {
@@ -101,7 +87,7 @@ func buildWater(lines []orb.LineString, worldSize float64, raster *dem.EsriASCII
 
 	// normalize rings
 	for index, line := range lines {
-		r := orb.Ring(line)
+		r := orb.Ring(line.Clone())
 
 		// close all rings
 		if !r.Closed() {

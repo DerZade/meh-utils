@@ -3,13 +3,18 @@ package mvt
 import (
 	"context"
 	"fmt"
-	"github.com/paulmach/orb/clip"
 	"math"
 	"os"
 	"path"
+	"regexp"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/paulmach/orb/clip"
+	"github.com/paulmach/orb/simplify"
 
 	"golang.org/x/sync/semaphore"
 
@@ -18,7 +23,6 @@ import (
 	"github.com/paulmach/orb/geojson"
 	"github.com/paulmach/orb/planar"
 	"github.com/paulmach/orb/project"
-	"github.com/paulmach/orb/simplify"
 
 	"../utils"
 )
@@ -26,8 +30,26 @@ import (
 const tileSize = mvt.DefaultExtent
 
 func buildVectorTiles(outputPath string, collectionsPtr *map[string]*geojson.FeatureCollection, maxLod uint8, worldSize float64, layerSettings *[]layerSetting) {
+	allLayers := make(map[string]*mvt.Layer)
 
-	for lod := uint8(0); lod <= maxLod; lod++ {
+	// set layer version to v2
+	for _, l := range mvt.NewLayers(*collectionsPtr) {
+		l.Version = 2
+		allLayers[l.Name] = l
+	}
+
+	// project features from arma coordinates to pixel coordinates
+	tilesPerRowCol := uint32(math.Pow(2, float64(maxLod))) // how many tiles each row has
+	pixels := uint64(tileSize) * uint64(tilesPerRowCol)    // how many pixels one row / col has
+	factor := float64(pixels) / worldSize                  // factor to convert from arma coordinates to pixel Coords
+	projectLayersInPlace(allLayers, func(p orb.Point) orb.Point {
+		return orb.Point{
+			p[0] * factor,
+			(worldSize - p[1]) * factor,
+		}
+	})
+
+	for lod := maxLod; lod >= 0; lod-- {
 		lodDir := path.Join(outputPath, fmt.Sprintf("%d", lod))
 		start := time.Now()
 
@@ -40,50 +62,82 @@ func buildVectorTiles(outputPath string, collectionsPtr *map[string]*geojson.Fea
 			}
 		}
 
-		buildLODVectorTiles(lod, maxLod, lodDir, collectionsPtr, worldSize, layerSettings)
+		// project from last LOD to this LOD
+		if lod != maxLod {
+			projectLayersInPlace(allLayers, func(p orb.Point) orb.Point {
+				return orb.Point{
+					p[0] / 2,
+					p[1] / 2,
+				}
+			})
+		}
+
+		// simplify layers
+		if lod != maxLod {
+			for _, layer := range allLayers {
+				if strings.HasPrefix(layer.Name, "locations") {
+					continue
+				}
+
+				switch layer.Name {
+				case "bunker", "chapel", "church", "cross", "fuelstation", "lighthouse", "rock", "shipwreck", "transmitter", "watertower", "fortress", "fountain", "view-tower", "quay", "hospital", "busstop", "stack", "ruin", "tourism", "powersolar", "powerwave", "powerwind", "tree", "bush":
+					continue
+				case "mount":
+					simplifyMounts(layer, 1000)
+				case "railway", "powerline":
+					layer.Simplify(simplify.DouglasPeucker(1))
+				case "house":
+					layer.RemoveEmpty(0, 200)
+				case "contours":
+					layer.Simplify(simplify.DouglasPeucker(2))
+					layer.RemoveEmpty(100, 0)
+				case "water":
+					layer.Simplify(simplify.DouglasPeucker(2))
+					layer.RemoveEmpty(0, 0)
+
+					// RemoveEmpty does not remove rings of holes smaller
+					// than threshold so we'll have to do that ourselves
+					for _, feature := range layer.Features {
+						poly := feature.Geometry.(orb.Polygon)
+
+						keepCount := 0
+						for _, r := range poly {
+							if planar.Length(r) < 150 {
+								continue
+							}
+
+							poly[keepCount] = r
+							keepCount++
+						}
+
+						feature.Geometry = poly[:keepCount]
+					}
+				default:
+					layer.Simplify(simplify.DouglasPeucker(1))
+					layer.RemoveEmpty(100, 200)
+				}
+				// TODO: Simplify streets
+			}
+		}
+
+		lodLayers := findLODLayers(allLayers, layerSettings, lod, maxLod)
+		fillContourLayers(lodLayers, allLayers["contours"])
+
+		buildLODVectorTiles(lod, lodDir, lodLayers)
 
 		fmt.Println("    ✔️  Finished tiles for LOD", lod, "in", time.Now().Sub(start).String())
+
+		// if we don't manually break uint will bamboozle
+		// us because 0-1 is just 255 and that's >= 0
+		if lod == 0 {
+			break
+		}
 	}
 }
 
-func buildLODVectorTiles(lod, maxLod uint8, lodDir string, collectionsPtr *map[string]*geojson.FeatureCollection, worldSize float64, layerSettings *[]layerSetting) {
+func buildLODVectorTiles(lod uint8, lodDir string, layers mvt.Layers) {
 	// how many tiles one row / col has
 	tilesPerRowCol := uint32(math.Pow(2, float64(lod)))
-
-	layers := findLODLayers(collectionsPtr, layerSettings, lod, maxLod)
-
-	// project features from arma coordinates to pixel coordinates
-	pixels := uint64(tileSize) * uint64(tilesPerRowCol) // how many pixels one row / col has
-	factor := float64(pixels) / worldSize               // factor to convert from arma coordinates to pixel Coords
-	projectLayersInPlace(layers, func(p orb.Point) orb.Point {
-		return orb.Point{
-			p[0] * factor,
-			(worldSize - p[1]) * factor,
-		}
-	})
-
-	// set layer version to v2
-	for _, l := range layers {
-		l.Version = 2
-	}
-
-	mountThres := float64(1000)
-	// simplify
-	if lod != maxLod {
-		layers.Simplify(simplify.DouglasPeucker(10))
-		layers.RemoveEmpty(10, 30)
-	} else {
-		layers.Simplify(simplify.DouglasPeucker(1))
-		layers.RemoveEmpty(10, 20)
-		mountThres = 100
-	}
-
-	// simplify mounts
-	for _, layer := range layers {
-		if layer.Name == "mount" {
-			simplifyMounts(layer, mountThres)
-		}
-	}
 
 	tileWaitGroup := sync.WaitGroup{}
 
@@ -130,47 +184,87 @@ func buildLODVectorTiles(lod, maxLod uint8, lodDir string, collectionsPtr *map[s
 }
 
 // findLODLayers return a mvt.Layers object which includes all layers valid for given LOD
-func findLODLayers(allCollections *map[string]*geojson.FeatureCollection, settingsPtr *[]layerSetting, lod uint8, maxLod uint8) mvt.Layers {
+func findLODLayers(allLayers map[string]*mvt.Layer, settingsPtr *[]layerSetting, lod uint8, maxLod uint8) mvt.Layers {
 
-	lodCollections := make(map[string]*geojson.FeatureCollection)
+	lodLayers := mvt.Layers{}
 
-	for layerName, fc := range *allCollections {
+	for _, layer := range allLayers {
+		layerName := layer.Name
+
+		// layer "contours" will never be drawn
+		if layerName == "contours" {
+			continue
+		}
+
 		// find layer settings for layerName
-		layerSettings := layerSetting{Layer: layerName, MinZoom: nil, MaxZoom: nil}
+		layerMinZoom := lod
+		layerMaxZoom := lod
 		for _, setting := range *settingsPtr {
 			if setting.Layer == layerName {
-				layerSettings = setting
+				if setting.MinZoom != nil {
+					layerMinZoom = *setting.MinZoom
+				}
+				if setting.MaxZoom != nil {
+					layerMaxZoom = *setting.MaxZoom
+				}
 				break
 			}
 		}
 
 		// make sure minZoom is not bigger than the maximum calculated layer
-		if layerSettings.MinZoom != nil && *layerSettings.MinZoom > maxLod {
-			layerSettings.MinZoom = &maxLod
+		if layerMinZoom > maxLod {
+			layerMinZoom = maxLod
 		}
 
-		if layerSettings.MaxZoom == nil && layerSettings.MinZoom == nil {
-			// both min- and maxzoom are not set
-			lodCollections[layerName] = utils.DeepCloneFeatureCollection(fc)
-		} else if layerSettings.MinZoom == nil {
-			// only maxzoom is set
-			if *layerSettings.MaxZoom >= lod {
-				lodCollections[layerName] = utils.DeepCloneFeatureCollection(fc)
-			}
-		} else if layerSettings.MaxZoom == nil {
-			// only minzoom is set
-			if *layerSettings.MinZoom <= lod {
-				lodCollections[layerName] = utils.DeepCloneFeatureCollection(fc)
-			}
-		} else {
-			// both min- and maxzoom are set
-			if *layerSettings.MinZoom <= lod && *layerSettings.MaxZoom >= lod {
-				lodCollections[layerName] = utils.DeepCloneFeatureCollection(fc)
-			}
+		if lod < layerMinZoom || lod > layerMaxZoom {
+			continue
 		}
+
+		lodLayers = append(lodLayers, layer)
 	}
 
-	return mvt.NewLayers(lodCollections)
+	return lodLayers
+}
+
+func fillContourLayers(lodLayers mvt.Layers, contours *mvt.Layer) {
+	pattern, _ := regexp.Compile("^contours/\\d+$")
+
+	for index, layer := range lodLayers {
+
+		if !pattern.MatchString(layer.Name) {
+			continue
+		}
+
+		interval, err := strconv.Atoi(layer.Name[len("contours/"):])
+		if err != nil {
+			continue
+		}
+
+		newLayer := mvt.Layer{
+			Name:     layer.Name,
+			Version:  layer.Version,
+			Extent:   layer.Extent,
+			Features: contours.Features,
+		}
+
+		if interval == 1 {
+			newLayer.Features = contours.Features
+		} else {
+			intervalFeatures := make([]*geojson.Feature, 0)
+
+			for _, f := range contours.Features {
+				elev := f.Properties["dem_elevation"].(int)
+
+				if elev%interval == 0 {
+					intervalFeatures = append(intervalFeatures, f)
+				}
+			}
+
+			newLayer.Features = intervalFeatures
+
+		}
+		lodLayers[index] = &newLayer
+	}
 }
 
 func createTile(x uint32, y uint32, layers mvt.Layers) ([]byte, error) {
@@ -256,7 +350,7 @@ func writeTile(tilePath string, data []byte) error {
 }
 
 // projectLayersInPlace projects all features of a layer
-func projectLayersInPlace(layers mvt.Layers, projection orb.Projection) {
+func projectLayersInPlace(layers map[string]*mvt.Layer, projection orb.Projection) {
 	for _, layer := range layers {
 		for _, feature := range (*layer).Features {
 			feature.Geometry = project.Geometry(feature.Geometry, projection)

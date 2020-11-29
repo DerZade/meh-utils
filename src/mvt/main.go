@@ -98,6 +98,10 @@ func Run(flagSet *flag.FlagSet) {
 	fmt.Printf("ℹ️  Loaded the following layers (%d): ", len(collections))
 	layerNames := make([]string, 0, len(collections))
 	for layerName := range collections {
+		if layerName == "contours" {
+			continue
+		}
+
 		layerNames = append(layerNames, layerName)
 	}
 	sort.Strings(layerNames)
