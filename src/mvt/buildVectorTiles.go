@@ -73,51 +73,58 @@ func buildVectorTiles(outputPath string, collectionsPtr *map[string]*geojson.Fea
 		}
 
 		// simplify layers
-		if lod != maxLod {
-			for _, layer := range allLayers {
-				if strings.HasPrefix(layer.Name, "locations") {
-					continue
-				}
+		for _, layer := range allLayers {
 
-				switch layer.Name {
-				case "bunker", "chapel", "church", "cross", "fuelstation", "lighthouse", "rock", "shipwreck", "transmitter", "watertower", "fortress", "fountain", "view-tower", "quay", "hospital", "busstop", "stack", "ruin", "tourism", "powersolar", "powerwave", "powerwind", "tree", "bush":
-					continue
-				case "mount":
-					simplifyMounts(layer, 1000)
-				case "railway", "powerline":
-					layer.Simplify(simplify.DouglasPeucker(1))
-				case "house":
-					layer.RemoveEmpty(0, 200)
-				case "contours":
-					layer.Simplify(simplify.DouglasPeucker(2))
-					layer.RemoveEmpty(100, 0)
-				case "water":
-					layer.Simplify(simplify.DouglasPeucker(2))
-					layer.RemoveEmpty(0, 0)
+			if lod == maxLod && layer.Name == "mount" {
+				simplifyMounts(layer, 100)
+			}
 
-					// RemoveEmpty does not remove rings of holes smaller
-					// than threshold so we'll have to do that ourselves
-					for _, feature := range layer.Features {
-						poly := feature.Geometry.(orb.Polygon)
+			if lod == maxLod {
+				continue
+			}
 
-						keepCount := 0
-						for _, r := range poly {
-							if planar.Length(r) < 150 {
-								continue
-							}
+			if strings.HasPrefix(layer.Name, "locations") {
+				continue
+			}
 
-							poly[keepCount] = r
-							keepCount++
+			switch layer.Name {
+			case "bunker", "chapel", "church", "cross", "fuelstation", "lighthouse", "rock", "shipwreck", "transmitter", "watertower", "fortress", "fountain", "view-tower", "quay", "hospital", "busstop", "stack", "ruin", "tourism", "powersolar", "powerwave", "powerwind", "tree", "bush":
+				continue
+			case "mount":
+				simplifyMounts(layer, 1000)
+			case "railway", "powerline":
+				layer.Simplify(simplify.DouglasPeucker(1))
+			case "house":
+				layer.RemoveEmpty(0, 70)
+			case "contours":
+				layer.Simplify(simplify.DouglasPeucker(5))
+				layer.RemoveEmpty(100, 0)
+			case "water":
+				layer.Simplify(simplify.DouglasPeucker(5))
+				layer.RemoveEmpty(100, 0)
+
+				// RemoveEmpty does not remove rings of holes smaller
+				// than threshold so we'll have to do that ourselves
+				for _, feature := range layer.Features {
+					poly := feature.Geometry.(orb.Polygon)
+
+					keepCount := 0
+					for _, r := range poly {
+						if planar.Length(r) < 100 {
+							continue
 						}
 
-						feature.Geometry = poly[:keepCount]
+						poly[keepCount] = r
+						keepCount++
 					}
-				default:
-					layer.Simplify(simplify.DouglasPeucker(1))
-					layer.RemoveEmpty(100, 200)
+
+					feature.Geometry = poly[:keepCount]
 				}
-				// TODO: Simplify streets
+			default:
+				layer.Simplify(simplify.DouglasPeucker(1))
+				layer.RemoveEmpty(100, 200)
 			}
+			// TODO: Simplify streets
 		}
 
 		lodLayers := findLODLayers(allLayers, layerSettings, lod, maxLod)
