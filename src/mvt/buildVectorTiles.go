@@ -120,11 +120,14 @@ func buildVectorTiles(outputPath string, collectionsPtr *map[string]*geojson.Fea
 
 					feature.Geometry = poly[:keepCount]
 				}
+			case "roads/main_road", "roads/road", "roads/track", "roads/trail":
+				layer.Simplify(simplify.DouglasPeucker(2))
+			case "roads/main_road-bridge", "roads/road-bridge", "roads/track-bridge", "roads/trail-bridge":
+				continue
 			default:
 				layer.Simplify(simplify.DouglasPeucker(1))
 				layer.RemoveEmpty(100, 200)
 			}
-			// TODO: Simplify streets
 		}
 
 		lodLayers := findLODLayers(allLayers, layerSettings, lod, maxLod)

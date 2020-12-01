@@ -127,7 +127,6 @@ func followLine(raster *EsriASCIIRaster, height float64, edge cellEdge_, cell, s
 		}
 	}
 	if !found {
-		// TODO: Throw error
 		return []orb.Point{}
 	}
 
