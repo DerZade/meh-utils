@@ -78,7 +78,7 @@ func Run(flagSet *flag.FlagSet) {
 	fmt.Println("▶️  Building tiles")
 	for lod := uint8(0); lod <= maxLod; lod++ {
 		timer2 := time.Now()
-		utils.BuildTileSet(lod, img, *outputPtr)
+		// utils.BuildTileSet(lod, img, *outputPtr)
 		fmt.Println("    ✔️  Finished tiles for LOD", lod, "in", time.Now().Sub(timer2).String())
 	}
 	fmt.Println("✔️  Built Terrain-RGB tiles in", time.Now().Sub(timer).String())

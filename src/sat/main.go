@@ -9,6 +9,7 @@ import (
 	"path"
 	"time"
 
+	"../mbtiles"
 	"../metajson"
 	"../tilejson"
 	"../utils"
@@ -66,12 +67,17 @@ func Run(flagSet *flag.FlagSet) {
 	maxLod := utils.CalcMaxLodFromImage(combinedImg)
 	fmt.Println("ℹ️  Calculated max lod:", maxLod)
 
+	mbt, err := mbtiles.Open(path.Join(*outputPtr, "sat.mbtiles"), meta.DisplayName, "png")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// build tiles
 	timer = time.Now()
 	fmt.Println("▶️  Building tiles")
 	for lod := uint8(0); lod <= maxLod; lod++ {
 		timer2 := time.Now()
-		utils.BuildTileSet(lod, combinedImg, *outputPtr)
+		utils.BuildTileSet(lod, combinedImg, &mbt)
 		fmt.Println("    ✔️  Finished tiles for LOD", lod, "in", time.Now().Sub(timer2).String())
 	}
 	fmt.Println("✔️  Built sat tiles in", time.Now().Sub(timer).String())
