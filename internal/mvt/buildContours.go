@@ -17,7 +17,7 @@ func buildContours(raster *dem.EsriASCIIRaster, elevOffset float64, worldSize fl
 
 	// find max / min elevation in DEM
 	maxElevation := float64(0)
-	minElevation := float64(0)
+	minElevation := float64(10000)
 	for row := uint(0); row < raster.Nrows; row++ {
 		for col := uint(0); col < raster.Ncols; col++ {
 			d := raster.Data[row][col]
@@ -115,21 +115,22 @@ func buildWater(lines []orb.LineString, worldSize float64, raster *dem.EsriASCII
 			findEdges := func(point orb.Point) byte {
 				edges := byte(0)
 
-				if point[1] == worldSize {
+				// - cellsize, because Arma actually does the same thing (see https://i.imgur.com/u0sO4Si.png)
+				if point[1] == worldSize-raster.CellSize {
 					// TOP
-					edges = edges & TOP_EDGE
+					edges |= TOP_EDGE
 				}
-				if point[0] == worldSize {
+				if point[0] == worldSize-raster.CellSize {
 					// RIGHT
-					edges = edges & RIGHT_EDGE
+					edges |= RIGHT_EDGE
 				}
 				if point[1] == 0 {
 					// BOTTOM
-					edges = edges & BOTTOM_EDGE
+					edges |= BOTTOM_EDGE
 				}
 				if point[0] == 0 {
 					// LEFT
-					edges = edges & LEFT_EDGE
+					edges |= LEFT_EDGE
 				}
 
 				return edges
