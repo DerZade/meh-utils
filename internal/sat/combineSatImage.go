@@ -9,7 +9,7 @@ import (
 	"path"
 	"sync"
 
-	"../utils"
+	"github.com/gruppe-adler/meh-utils/internal/utils"
 )
 
 // combineSatImage combines the 4x4 tiles form the inputDir to a new image.RGBA

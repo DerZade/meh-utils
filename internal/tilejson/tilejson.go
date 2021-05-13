@@ -6,7 +6,7 @@ import (
 	"os"
 	"path"
 
-	"../metajson"
+	"github.com/gruppe-adler/meh-utils/internal/metajson"
 )
 
 // Write a tile.json

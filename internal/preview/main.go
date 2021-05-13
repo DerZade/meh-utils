@@ -11,8 +11,8 @@ import (
 	"path"
 	"time"
 
-	"../utils"
-	"../validate"
+	"github.com/gruppe-adler/meh-utils/internal/utils"
+	"github.com/gruppe-adler/meh-utils/internal/validate"
 	"github.com/nfnt/resize"
 )
 

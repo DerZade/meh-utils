@@ -9,11 +9,11 @@ import (
 	"path"
 	"time"
 
-	"../dem"
-	"../metajson"
-	"../tilejson"
-	"../utils"
-	"../validate"
+	"github.com/gruppe-adler/meh-utils/internal/dem"
+	"github.com/gruppe-adler/meh-utils/internal/metajson"
+	"github.com/gruppe-adler/meh-utils/internal/tilejson"
+	"github.com/gruppe-adler/meh-utils/internal/utils"
+	"github.com/gruppe-adler/meh-utils/internal/validate"
 )
 
 var sizes = []uint{128, 256, 512, 1024}

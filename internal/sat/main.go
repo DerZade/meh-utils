@@ -9,10 +9,10 @@ import (
 	"path"
 	"time"
 
-	"../metajson"
-	"../tilejson"
-	"../utils"
-	"../validate"
+	"github.com/gruppe-adler/meh-utils/internal/metajson"
+	"github.com/gruppe-adler/meh-utils/internal/tilejson"
+	"github.com/gruppe-adler/meh-utils/internal/utils"
+	"github.com/gruppe-adler/meh-utils/internal/validate"
 )
 
 // Run is the program's entrypoint

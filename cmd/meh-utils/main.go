@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"./mvt"
-	"./preview"
-	"./sat"
-	"./terrainrgb"
+	"github.com/gruppe-adler/meh-utils/internal/mvt"
+	"github.com/gruppe-adler/meh-utils/internal/preview"
+	"github.com/gruppe-adler/meh-utils/internal/sat"
+	"github.com/gruppe-adler/meh-utils/internal/terrainrgb"
 )
 
 type command struct {

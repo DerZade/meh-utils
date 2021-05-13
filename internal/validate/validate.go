@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path"
 
-	"../utils"
+	"github.com/gruppe-adler/meh-utils/internal/utils"
 )
 
 // MehDirectory validates that given directory is valid grad_meh directory

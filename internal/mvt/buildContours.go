@@ -10,7 +10,7 @@ import (
 	"github.com/paulmach/orb/planar"
 	"golang.org/x/sync/semaphore"
 
-	dem "../dem"
+	dem "github.com/gruppe-adler/meh-utils/internal/dem"
 )
 
 func buildContours(raster *dem.EsriASCIIRaster, elevOffset float64, worldSize float64, layers *map[string]*geojson.FeatureCollection) {

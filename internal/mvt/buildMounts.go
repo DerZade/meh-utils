@@ -5,7 +5,7 @@ import (
 	"math"
 	"math/rand"
 
-	dem "../dem"
+	dem "github.com/gruppe-adler/meh-utils/internal/dem"
 	"github.com/paulmach/orb"
 	"github.com/paulmach/orb/geojson"
 )

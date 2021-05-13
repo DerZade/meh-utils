@@ -3,7 +3,7 @@ package terrainrgb
 import (
 	"image"
 
-	dem "../dem"
+	dem "github.com/gruppe-adler/meh-utils/internal/dem"
 )
 
 func calculateImage(dem dem.EsriASCIIRaster, elevationOffset float64) *image.RGBA {

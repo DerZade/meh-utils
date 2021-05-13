@@ -24,7 +24,7 @@ import (
 	"github.com/paulmach/orb/planar"
 	"github.com/paulmach/orb/project"
 
-	"../utils"
+	"github.com/gruppe-adler/meh-utils/internal/utils"
 )
 
 const tileSize = mvt.DefaultExtent
