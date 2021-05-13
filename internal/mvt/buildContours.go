@@ -100,10 +100,12 @@ func buildWater(lines []orb.LineString, worldSize float64, raster *dem.EsriASCII
 			start := r[0]
 			end := r[len(r)-1]
 
-			const TOP_EDGE = 0x01
-			const RIGHT_EDGE = 0x02
-			const BOTTOM_EDGE = 0x04
-			const LEFT_EDGE = 0x08
+			const (
+				TOP_EDGE    = 0b0001
+				LEFT_EDGE   = 0b0010
+				BOTTOM_EDGE = 0b0100
+				RIGHT_EDGE  = 0b1000
+			)
 
 			// returns bitmask, on which world edges point is
 			// first bit  -> top edge
