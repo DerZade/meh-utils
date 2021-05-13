@@ -66,7 +66,7 @@ func MarchingSquares(raster *EsriASCIIRaster, height float64) []orb.LineString {
 
 			for _, bit := range bits {
 				// check if bit is already included in a finished line
-				if bit.StartEdge & visited > 0 {
+				if bit.StartEdge&visited > 0 {
 					continue
 				}
 
@@ -78,7 +78,7 @@ func MarchingSquares(raster *EsriASCIIRaster, height float64) []orb.LineString {
 				if err == nil {
 					line = append(line, followLine(raster, height, nextEdge, nextCell, cell, &visitedCells)...)
 				}
-			
+
 				// follow the line in the other direction if the line is not already closed (we made an ring)
 				if line[0] != line[len(line)-1] {
 					nextCell, nextEdge, err = neighbourCell(raster, cell, bit.StartEdge)
@@ -141,9 +141,9 @@ func followLine(raster *EsriASCIIRaster, height float64, edge cellEdge_, cell, s
 	// calculate next cell
 	nextCell, nextEdge, err := neighbourCell(raster, cell, bit.EndEdge)
 	if err != nil || (nextCell.Col == startCell.Col && nextCell.Row == startCell.Row) {
-		return []orb.Point{ bit.End }
+		return []orb.Point{bit.End}
 	}
-	
+
 	// recurse to next cell
 	return append([]orb.Point{bit.End}, followLine(raster, height, nextEdge, nextCell, startCell, visitedCells)...)
 }
@@ -209,7 +209,7 @@ func calcBitsForColRow(raster *EsriASCIIRaster, cell cell_, height float64) []co
 	case 1, 14:
 		return []contourLineBit_{
 			// one line from bottom to left edge
-			contourLineBit_{
+			{
 				StartEdge: bottomEdgeIndex,
 				EndEdge:   leftEdgeIndex,
 				Start:     orb.Point{interpolate(leftX, blHeight, rightX, brHeight, height), bottomY}, // BOTTOM EDGE
@@ -219,7 +219,7 @@ func calcBitsForColRow(raster *EsriASCIIRaster, cell cell_, height float64) []co
 	case 2, 13:
 		return []contourLineBit_{
 			// one line from right to bottom edge
-			contourLineBit_{
+			{
 				StartEdge: rightEdgeIndex,
 				EndEdge:   bottomEdgeIndex,
 				Start:     orb.Point{rightX, interpolate(bottomY, brHeight, topY, trHeight, height)},  // RIGHT EDGE
@@ -229,7 +229,7 @@ func calcBitsForColRow(raster *EsriASCIIRaster, cell cell_, height float64) []co
 	case 3, 12:
 		return []contourLineBit_{
 			// one line from right to left edge
-			contourLineBit_{
+			{
 				StartEdge: rightEdgeIndex,
 				EndEdge:   leftEdgeIndex,
 				Start:     orb.Point{rightX, interpolate(bottomY, brHeight, topY, trHeight, height)}, // RIGHT EDGE
@@ -239,7 +239,7 @@ func calcBitsForColRow(raster *EsriASCIIRaster, cell cell_, height float64) []co
 	case 4, 11:
 		return []contourLineBit_{
 			// one line from top to right edge
-			contourLineBit_{
+			{
 				StartEdge: topEdgeIndex,
 				EndEdge:   rightEdgeIndex,
 				Start:     orb.Point{interpolate(leftX, tlHeight, rightX, trHeight, height), topY},   // TOP EDGE
@@ -249,14 +249,14 @@ func calcBitsForColRow(raster *EsriASCIIRaster, cell cell_, height float64) []co
 	case 5:
 		return []contourLineBit_{
 			// one line from left to top edge
-			contourLineBit_{
+			{
 				StartEdge: leftEdgeIndex,
 				EndEdge:   topEdgeIndex,
 				Start:     orb.Point{leftX, interpolate(bottomY, blHeight, topY, tlHeight, height)}, // LEFT EDGE
 				End:       orb.Point{interpolate(leftX, tlHeight, rightX, trHeight, height), topY},  // TOP EDGE
 			},
 			// one line from bottom to right edge
-			contourLineBit_{
+			{
 				StartEdge: bottomEdgeIndex,
 				EndEdge:   rightEdgeIndex,
 				Start:     orb.Point{interpolate(leftX, blHeight, rightX, brHeight, height), bottomY}, // BOTTOM EDGE
@@ -266,7 +266,7 @@ func calcBitsForColRow(raster *EsriASCIIRaster, cell cell_, height float64) []co
 	case 6, 9:
 		return []contourLineBit_{
 			// one line from top to bottom edge
-			contourLineBit_{
+			{
 				StartEdge: topEdgeIndex,
 				EndEdge:   bottomEdgeIndex,
 				Start:     orb.Point{interpolate(leftX, tlHeight, rightX, trHeight, height), topY},    // TOP EDGE
@@ -276,7 +276,7 @@ func calcBitsForColRow(raster *EsriASCIIRaster, cell cell_, height float64) []co
 	case 7, 8:
 		return []contourLineBit_{
 			// one line from left to top edge
-			contourLineBit_{
+			{
 				StartEdge: leftEdgeIndex,
 				EndEdge:   topEdgeIndex,
 				Start:     orb.Point{leftX, interpolate(bottomY, blHeight, topY, tlHeight, height)}, // LEFT EDGE
@@ -286,14 +286,14 @@ func calcBitsForColRow(raster *EsriASCIIRaster, cell cell_, height float64) []co
 	case 10:
 		return []contourLineBit_{
 			// one line from left to bottom edge
-			contourLineBit_{
+			{
 				StartEdge: leftEdgeIndex,
 				EndEdge:   bottomEdgeIndex,
 				Start:     orb.Point{leftX, interpolate(bottomY, blHeight, topY, tlHeight, height)},   // LEFT EDGE
 				End:       orb.Point{interpolate(leftX, blHeight, rightX, brHeight, height), bottomY}, // BOTTOM EDGE
 			},
 			// one line from top to right edge
-			contourLineBit_{
+			{
 				StartEdge: topEdgeIndex,
 				EndEdge:   rightEdgeIndex,
 				Start:     orb.Point{interpolate(leftX, tlHeight, rightX, trHeight, height), topY},   // TOP EDGE
