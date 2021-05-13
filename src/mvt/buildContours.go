@@ -91,7 +91,79 @@ func buildWater(lines []orb.LineString, worldSize float64, raster *dem.EsriASCII
 
 		// close all rings
 		if !r.Closed() {
-			r = append(r, r[0])
+			// non closed rings usually occur, when a contour line meets a map edge
+			// this makes things a little tricks, because what happens if for example
+			// the beginning of the line is on the top edge of the map and the end is
+			// on the left edge (see Chernarus) we can't just connect the two points
+			// (begining and end) and call it a day. We have to insert another point
+			// (in the upper-left corner) in between the beginning and the end.
+			start := r[0]
+			end := r[len(r)-1]
+
+			const TOP_EDGE = 0x01
+			const RIGHT_EDGE = 0x02
+			const BOTTOM_EDGE = 0x03
+			const LEFT_EDGE = 0x04
+
+			// returns bitmask, on which world edges point is
+			// first bit  -> top edge
+			// second bit -> right edge
+			// third bit  -> bottom edge
+			// fourth bit -> left edge
+			findEdges := func(point orb.Point) byte {
+				edges := byte(0)
+
+				if point[1] == worldSize {
+					// TOP
+					edges = edges & TOP_EDGE
+				}
+				if point[0] == worldSize {
+					// RIGHT
+					edges = edges & RIGHT_EDGE
+				}
+				if point[1] == 0 {
+					// BOTTOM
+					edges = edges & BOTTOM_EDGE
+				}
+				if point[0] == 0 {
+					// LEFT
+					edges = edges & LEFT_EDGE
+				}
+
+				return edges
+			}
+
+			startEdges := findEdges(start)
+			endEdges := findEdges(end)
+
+			if startEdges&endEdges == 0 {
+				// start and end do NOT share an edge, so we
+				// need to insert the correct point in between
+
+				isTop := func(edges byte) bool { return edges&TOP_EDGE > 0 }
+				isRight := func(edges byte) bool { return edges&RIGHT_EDGE > 0 }
+				isBottom := func(edges byte) bool { return edges&BOTTOM_EDGE > 0 }
+				isLeft := func(edges byte) bool { return edges&LEFT_EDGE > 0 }
+
+				if isTop(startEdges) && isRight(endEdges) || isRight(startEdges) && isTop(endEdges) {
+					r = append(r, orb.Point{worldSize, worldSize})
+				}
+
+				if isBottom(startEdges) && isRight(endEdges) || isRight(startEdges) && isBottom(endEdges) {
+					r = append(r, orb.Point{worldSize, 0})
+				}
+
+				if isBottom(startEdges) && isLeft(endEdges) || isLeft(startEdges) && isBottom(endEdges) {
+					r = append(r, orb.Point{0, 0})
+				}
+
+				if isTop(startEdges) && isLeft(endEdges) || isLeft(startEdges) && isTop(endEdges) {
+					r = append(r, orb.Point{0, worldSize})
+				}
+			}
+
+			r = append(r, start)
+
 		}
 
 		// make sure the ring is winding order = clockwise
